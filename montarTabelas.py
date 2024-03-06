@@ -162,7 +162,7 @@ def montar_tabela_brasil_uf():
 
     # Dados de rendimento
     df_tmp = df_ren_brasil.loc[df_ren_brasil.UNIDGEO.isin(['Brasil', 'São Paulo']) & (df_ren_brasil.NO_CATEGORIA == 'Total')]
-    df_tmp = df_tmp[['UNIDGEO', 'TP_DEPENDENCIA'] + COLUNAS_REN_TAXA].set_index(COLUNAS_INDEX_BRASIL_SP)
+    df_tmp = df_tmp[['UNIDGEO', 'TP_DEPENDENCIA'] + COLUNAS_REN_TAXA].set_index(COLUNAS_INDEX_BRASIL_SP) / 100
 
     df = pd.concat([df, df_tmp], axis=1)
 
@@ -196,8 +196,8 @@ def montar_tabela_RA():
     for tipo_rendimento in ('APROVACAO', 'REPROVACAO', 'ABANDONO'):
         for etapa in ('EM', 'EF_AF'):
             col = f'{tipo_rendimento}_{etapa}'
-            cols.append(g.apply(lambda g: (g[f'QT_MAT_{etapa}'] * g[col]).sum()
-                                / g[f'QT_MAT_{etapa}'].sum()).to_frame(f'{tipo_rendimento}_{etapa}'))
+            cols.append(g.apply(lambda g: ((g[f'QT_MAT_{etapa}'] * g[col]).sum()
+                                / g[f'QT_MAT_{etapa}'].sum()) / 100).to_frame(f'{tipo_rendimento}_{etapa}'))
 
     df = pd.concat([df, *cols], axis=1)
     return df
@@ -223,7 +223,7 @@ def montar_tabela_municipio():
     df_ren_tmp =  df_ren_mun.loc[(df_ren_mun.SG_UF == 'SP') &
                                  (df_ren_mun.NO_CATEGORIA == 'Total') &
                                  (df_ren_mun.TP_DEPENDENCIA == 'Total')]
-    df_ren_tmp = df_ren_tmp[COLUNAS_MUN + COLUNAS_REN_TAXA].set_index(COLUNAS_MUN)
+    df_ren_tmp = df_ren_tmp[COLUNAS_MUN + COLUNAS_REN_TAXA].set_index(COLUNAS_MUN) / 100
     df = pd.concat([df, df_ren_tmp], axis=1)
 
     df_ren_tmp =  df_ren_mun.loc[(df_ren_mun.SG_UF == 'SP') &
@@ -234,6 +234,8 @@ def montar_tabela_municipio():
     df = pd.concat([df, df_ren_tmp], axis=1)
 
     return df
+
+
 print()
 if __name__ == '__main__':
     
@@ -248,9 +250,9 @@ if __name__ == '__main__':
     df_ren_brasil = padronizar_ren(rendimento.obter_df(ANO_RENDIMENTO, rendimento.Tipo.BRASIL))
     df_ren_mun = padronizar_ren(rendimento.obter_df(ANO_RENDIMENTO, rendimento.Tipo.MUNICIPIO))
 
-    #df_populacao = populacao.obter_df(ANO_POPULACAO)
-    #df_pop_EF_AF = df_populacao.loc[:, 11:14].sum(axis=1).to_frame('POP_11_14ANOS').astype('UInt64')
-    #df_pop_EM    = df_populacao.loc[:, 15:17].sum(axis=1).to_frame('POP_15_17ANOS').astype('UInt64')
+    df_populacao = populacao.obter_df(ANO_POPULACAO)
+    df_pop_EF_AF = df_populacao.loc[:, 11:14].sum(axis=1).to_frame('POP_11_14ANOS').astype('UInt64')
+    df_pop_EM    = df_populacao.loc[:, 15:17].sum(axis=1).to_frame('POP_15_17ANOS').astype('UInt64')
 
     df_sinopse = sinopse.obter_df(ANO_SINOPSE)
     
@@ -260,3 +262,6 @@ if __name__ == '__main__':
     
     df_frequencia = padronizar_fre(frequencia.obter_df(ANO_FREQUENCIA, TRI_FREQUENCIA, colunas=COLUNAS_FREQUENCIA))
     print(montar_tabela_brasil_uf())
+    print(montar_tabela_RA())
+    print(montar_tabela_municipio())
+    
