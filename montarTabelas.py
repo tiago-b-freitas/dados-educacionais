@@ -229,11 +229,46 @@ def montar_tabela_municipio():
     df_ren_tmp =  df_ren_mun.loc[(df_ren_mun.SG_UF == 'SP') &
                                  (df_ren_mun.NO_CATEGORIA == 'Total') &
                                  (df_ren_mun.TP_DEPENDENCIA == 'Estadual')]
-    df_ren_tmp = df_ren_tmp[COLUNAS_MUN + COLUNAS_REN_TAXA].set_index(COLUNAS_MUN)
+    df_ren_tmp = df_ren_tmp[COLUNAS_MUN + COLUNAS_REN_TAXA].set_index(COLUNAS_MUN) / 100
     df_ren_tmp = df_ren_tmp.rename(columns={col: col+'_EST' for col in COLUNAS_REN_TAXA})
     df = pd.concat([df, df_ren_tmp], axis=1)
 
     return df
+
+def montar_xlsx():
+    df_brasil_sp = pd.read_pickle('brasil.p')
+    df_RA = pd.read_pickle('ra.p')
+    df_mun = pd.read_pickle('mun.p')
+
+    with pd.ExcelWriter('001-boletim-educacional.xlsx', engine='xlsxwriter') as writer:
+        workbook  = writer.book
+        format_int  = workbook.add_format({'num_format': '#,##0'})
+        format_perc = workbook.add_format({'num_format': '0.00%'})
+
+        brasil_sheet = 'Brasil e São Paulo'
+        ra_sheet = 'Regiões Administrativas de SP'
+        mun_sheet = 'Municípios de SP'
+
+        df_brasil_sp.to_excel(writer, sheet_name=brasil_sheet)
+        df_RA.to_excel(writer, sheet_name=ra_sheet)
+        df_mun.to_excel(writer, sheet_name=mun_sheet)
+
+        worksheet_brasil_sp = writer.sheets[brasil_sheet]
+        worksheet_ra = writer.sheets[ra_sheet]
+        worksheet_mun = writer.sheets[mun_sheet]
+
+        worksheet_brasil_sp.set_column(0, 1, 14)
+        worksheet_brasil_sp.set_column(2, 3, 14, format_int)
+        worksheet_brasil_sp.set_column(4, 13, 14, format_perc)
+
+        worksheet_ra.set_column(0, 0, 30)
+        worksheet_ra.set_column(1, 2, 14, format_int)
+        worksheet_ra.set_column(3, 8, 14, format_perc)
+
+        worksheet_mun.set_column(0, 0, 14)
+        worksheet_mun.set_column(1, 1, 30)
+        worksheet_mun.set_column(2, 9, 14, format_int)
+        worksheet_mun.set_column(10, 27, 14, format_perc)
 
 
 print()
@@ -261,7 +296,8 @@ if __name__ == '__main__':
     df_mat_sp_11a17_mun  = df_sinopse.loc[(df_sinopse.NO_UF == 'São Paulo') & df_sinopse.CO_MUNICIPIO.notna(), COLUNAS_MUN + COLUNAS_MAT_QT_IDADE].set_index(COLUNAS_MUN)
     
     df_frequencia = padronizar_fre(frequencia.obter_df(ANO_FREQUENCIA, TRI_FREQUENCIA, colunas=COLUNAS_FREQUENCIA))
-    print(montar_tabela_brasil_uf())
-    print(montar_tabela_RA())
-    print(montar_tabela_municipio())
+
+    montar_tabela_brasil_uf().to_pickle('brasil.p')
+    montar_tabela_RA().to_pickle('ra.p')
+    montar_tabela_municipio().to_pickle('mun.p')
     
