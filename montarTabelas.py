@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
+import os
+
 import pandas as pd
+import pandas.io.formats.excel as excel
+excel.ExcelFormatter.header_style = None
 
 import frequencia
 import matricula
@@ -34,6 +38,19 @@ COLUNAS_FREQUENCIA = [
         'V3006A', # Qual é a etapa do ensino fundamental que frequenta #1 AI e #2 AF
         'VD3004', # Nível de instrução mais elevado alcançado #3 Fundamental completo e #5 Médio completo
 ]
+
+UN_GEO = 'Unidade Geográfica'
+TP_DEP = 'Dependência Administrativa'
+EF_AF  = 'Ensino Fundamental - Anos Finais' 
+EM     = 'Ensino Médio'
+QT_MAT = 'Número de Matrículas'
+TX_LIQ = 'Taxa de Escolarização Líquida'
+TX_BRU = 'Taxa de Escolarização Bruta'
+TX_APR = 'Taxa de Aprovação'
+TX_REP = 'Taxa de Reprovação'
+TX_ABN = 'Taxa de Abandono'
+
+BRASIL_SP_PICKLE_FILEPATH = './pickles/brasil-sp.pickle'
 
 def padronizar_mat(df):
     df = df.rename(columns={'QT_MAT_MED': 'QT_MAT_EM',
@@ -124,7 +141,7 @@ def montar_tabela_frequencia(dependencia):
     }
     return pd.DataFrame(taxas_dict).set_index(COLUNAS_INDEX_BRASIL_SP)
 
-def montar_tabela_brasil_uf():
+def montar_tabela_brasil_sp():
 
     # Dados de matrícula 
     df = df_mat_brasil.groupby('TP_DEPENDENCIA')[COLUNAS_MAT_QT].sum().reset_index()
@@ -235,44 +252,81 @@ def montar_tabela_municipio():
 
     return df
 
+def preparar_xlsx_brasil(writer, estilos):
+    
+    arrays = [
+        [EF_AF , EF_AF , EF_AF , EF_AF , EF_AF , EF_AF , EM    , EM    , EM    , EM    , EM    ,  EM    ],
+        [QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP, TX_ABN, QT_MAT, TX_LIQ, TX_BRU, TX_APR, TX_REP,  TX_ABN],
+    ]
+
+    nomes_index = [UN_GEO, TP_DEP]
+
+    ordem_colunas = ['QT_MAT_EF_AF', 'TAXA_BRUTA_EF_AF', 'TAXA_LIQUIDA_EF_AF',
+                     'APROVACAO_EF_AF', 'REPROVACAO_EF_AF', 'ABANDONO_EF_AF',
+                     'QT_MAT_EM', 'TAXA_BRUTA_EM', 'TAXA_LIQUIDA_EM',
+                     'APROVACAO_EM', 'REPROVACAO_EM', 'ABANDONO_EM']
+
+    mi = pd.MultiIndex.from_arrays(arrays)
+
+    if not os.path.isfile(BRASIL_SP_PICKLE_FILEPATH):
+        montar_tabela_brasil_sp().to_pickle(BRASIL_SP_PICKLE_FILEPATH)
+    df = pd.read_pickle(BRASIL_SP_PICKLE_FILEPATH)
+    df = df[ordem_colunas]
+    df.columns = mi
+    df.index.names = nomes_index
+    
+    brasil_sheet = 'Brasil e São Paulo'
+    df.to_excel(writer, sheet_name=brasil_sheet)
+
+    worksheet = writer.sheets[brasil_sheet]
+    worksheet.set_column(0, 1, 14)
+    worksheet.set_column(2, 2, 14, estilos['int'])
+    worksheet.set_column(3, 7, 14, estilos['%'])
+    worksheet.set_column(8, 8, 14, estilos['int'])
+    worksheet.set_column(9, 13, 14, estilos['%'])
+    
+    worksheet.set_row(0, 30, estilos['header'])
+    worksheet.set_row(1, 30, estilos['header'])
+
 def montar_xlsx():
-    df_brasil_sp = pd.read_pickle('brasil.p')
-    df_RA = pd.read_pickle('ra.p')
-    df_mun = pd.read_pickle('mun.p')
+    #df_RA = pd.read_pickle('ra.p')
+    #df_mun = pd.read_pickle('mun.p')
 
     with pd.ExcelWriter('001-boletim-educacional.xlsx', engine='xlsxwriter') as writer:
         workbook  = writer.book
         format_int  = workbook.add_format({'num_format': '#,##0'})
         format_perc = workbook.add_format({'num_format': '0.00%'})
+        format_header = workbook.add_format({'text_wrap': True,
+                                             'valign': 'vcenter',
+                                             'align': 'center'})
+        estilos = {'int': format_int,
+                   '%':   format_perc,
+                   'header': format_header}
+    
+        preparar_xlsx_brasil(writer, estilos)
 
-        brasil_sheet = 'Brasil e São Paulo'
-        ra_sheet = 'Regiões Administrativas de SP'
-        mun_sheet = 'Municípios de SP'
+        #ra_sheet = 'Regiões Administrativas de SP'
+        #mun_sheet = 'Municípios de SP'
 
-        df_brasil_sp.to_excel(writer, sheet_name=brasil_sheet)
-        df_RA.to_excel(writer, sheet_name=ra_sheet)
-        df_mun.to_excel(writer, sheet_name=mun_sheet)
+        #df_RA.to_excel(writer, sheet_name=ra_sheet)
+        #df_mun.to_excel(writer, sheet_name=mun_sheet)
 
-        worksheet_brasil_sp = writer.sheets[brasil_sheet]
-        worksheet_ra = writer.sheets[ra_sheet]
-        worksheet_mun = writer.sheets[mun_sheet]
-
-        worksheet_brasil_sp.set_column(0, 1, 14)
-        worksheet_brasil_sp.set_column(2, 3, 14, format_int)
-        worksheet_brasil_sp.set_column(4, 13, 14, format_perc)
-
-        worksheet_ra.set_column(0, 0, 30)
-        worksheet_ra.set_column(1, 2, 14, format_int)
-        worksheet_ra.set_column(3, 8, 14, format_perc)
-
-        worksheet_mun.set_column(0, 0, 14)
-        worksheet_mun.set_column(1, 1, 30)
-        worksheet_mun.set_column(2, 9, 14, format_int)
-        worksheet_mun.set_column(10, 27, 14, format_perc)
+        #worksheet_ra = writer.sheets[ra_sheet]
+        #worksheet_mun = writer.sheets[mun_sheet]
 
 
-print()
-if __name__ == '__main__':
+        #worksheet_ra.set_column(0, 0, 30)
+        #worksheet_ra.set_column(1, 2, 14, format_int)
+        #worksheet_ra.set_column(3, 8, 14, format_perc)
+
+        #worksheet_mun.set_column(0, 0, 14)
+        #worksheet_mun.set_column(1, 1, 30)
+        #worksheet_mun.set_column(2, 9, 14, format_int)
+        #worksheet_mun.set_column(10, 27, 14, format_perc)
+
+
+montar_xlsx()
+if __name__ == '__mbin__':
     
     df_mat = padronizar_mat(matricula.obter_df(ANO_MATRICULA, colunas=COLUNAS_MAT))
 
@@ -297,7 +351,7 @@ if __name__ == '__main__':
     
     df_frequencia = padronizar_fre(frequencia.obter_df(ANO_FREQUENCIA, TRI_FREQUENCIA, colunas=COLUNAS_FREQUENCIA))
 
-    montar_tabela_brasil_uf().to_pickle('brasil.p')
+    montar_tabela_brasil_sp().to_pickle(BRASIL_SP_PICKLE_FILEPATH)
     montar_tabela_RA().to_pickle('ra.p')
     montar_tabela_municipio().to_pickle('mun.p')
     
