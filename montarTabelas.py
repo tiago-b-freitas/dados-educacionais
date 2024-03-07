@@ -255,38 +255,41 @@ def montar_tabela_municipio():
 def preparar_xlsx_brasil(writer, estilos):
     
     arrays = [
-        [EF_AF , EF_AF , EF_AF , EF_AF , EF_AF , EF_AF , EM    , EM    , EM    , EM    , EM    ,  EM    ],
-        [QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP, TX_ABN, QT_MAT, TX_LIQ, TX_BRU, TX_APR, TX_REP,  TX_ABN],
+        [UN_GEO, TP_DEP, EF_AF , EF_AF , EF_AF , EF_AF , EF_AF , EF_AF , EM    , EM    , EM    , EM    , EM    ,  EM    ],
+        ['', '', QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP, TX_ABN, QT_MAT, TX_LIQ, TX_BRU, TX_APR, TX_REP,  TX_ABN],
     ]
-
-    nomes_index = [UN_GEO, TP_DEP]
 
     ordem_colunas = ['QT_MAT_EF_AF', 'TAXA_BRUTA_EF_AF', 'TAXA_LIQUIDA_EF_AF',
                      'APROVACAO_EF_AF', 'REPROVACAO_EF_AF', 'ABANDONO_EF_AF',
                      'QT_MAT_EM', 'TAXA_BRUTA_EM', 'TAXA_LIQUIDA_EM',
                      'APROVACAO_EM', 'REPROVACAO_EM', 'ABANDONO_EM']
 
-    mi = pd.MultiIndex.from_arrays(arrays)
-
     if not os.path.isfile(BRASIL_SP_PICKLE_FILEPATH):
         montar_tabela_brasil_sp().to_pickle(BRASIL_SP_PICKLE_FILEPATH)
     df = pd.read_pickle(BRASIL_SP_PICKLE_FILEPATH)
-    df = df[ordem_colunas]
-    df.columns = mi
-    df.index.names = nomes_index
+    df = df[ordem_colunas].reset_index()
+    #df.columns = pd.MultiIndex.from_arrays(arrays)
     
     brasil_sheet = 'Brasil e São Paulo'
-    df.to_excel(writer, sheet_name=brasil_sheet)
+    df.to_excel(writer, sheet_name=brasil_sheet, startrow=2,  header=False, index=False)
 
     worksheet = writer.sheets[brasil_sheet]
+    worksheet.merge_range(0, 0, 1, 0, UN_GEO)
+    worksheet.merge_range(0, 1, 1, 1, TP_DEP)
+    worksheet.merge_range(0, 2, 0, 7, EF_AF)
+    worksheet.merge_range(0, 8, 0, 13, EM)
+    
     worksheet.set_column(0, 1, 14)
     worksheet.set_column(2, 2, 14, estilos['int'])
     worksheet.set_column(3, 7, 14, estilos['%'])
     worksheet.set_column(8, 8, 14, estilos['int'])
     worksheet.set_column(9, 13, 14, estilos['%'])
-    
+     
     worksheet.set_row(0, 30, estilos['header'])
     worksheet.set_row(1, 30, estilos['header'])
+    for i, val in enumerate(arrays[1]): 
+        if val:
+            worksheet.write(1, i, val, estilos['header'])
 
 def montar_xlsx():
     #df_RA = pd.read_pickle('ra.p')
@@ -304,7 +307,13 @@ def montar_xlsx():
                    'header': format_header}
     
         preparar_xlsx_brasil(writer, estilos)
-
+    
+    #from openpyxl.reader.excel import load_workbook
+    
+    #wb = load_workbook('001-boletim-educacional.xlsx')
+    #ws = wb.active
+    #ws.delete_cols(1)
+    #wb.save('teste.xlsx')
         #ra_sheet = 'Regiões Administrativas de SP'
         #mun_sheet = 'Municípios de SP'
 
