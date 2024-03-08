@@ -44,6 +44,8 @@ CO_MUN = 'Código do Município'
 TP_DEP = 'Dependência Administrativa'
 EF_AF  = 'Ensino Fundamental – Anos Finais' 
 EM     = 'Ensino Médio'
+DEP_TO = 'Total'
+DEP_ET = 'Rede Estadual'
 QT_MAT = 'Número de Matrículas'
 QT_EST = f'{QT_MAT} da Rede Estadual'
 QT_IDA = f'{QT_MAT} na Faixa Etária Adequada'
@@ -347,26 +349,33 @@ def preparar_xlsx_RA(writer, estilos):
 
 
 def preparar_xlsx_municipio(writer, estilos):
-    colunas = ['', '', QT_MAT, QT_EST, QT_IDA, TX_APR, TX_REP, TX_ABN, QT_MAT, QT_EST, QT_IDA, TX_APR, TX_REP, TX_ABN]
+    colunas = ['', '', QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN,
+                       QT_MAT, TX_APR, TX_REP, TX_ABN,
+                       QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN,
+                       QT_MAT, TX_APR, TX_REP, TX_ABN]
 
-    ordem_colunas = ['NO_MUNICIPIO', 'CO_MUNICIPIO',
-                     'QT_MAT_EF_AF', 'QT_MAT_EF_AF_EST', 'QT_MAT_EF_AF_11_14_ANOS', 'APROVACAO_EF_AF', 'REPROVACAO_EF_AF', 'ABANDONO_EF_AF',
-                     'QT_MAT_EM'   , 'QT_MAT_EM_EST'   , 'QT_MAT_EM_15_17_ANOS'   , 'APROVACAO_EM'   , 'REPROVACAO_EM'   , 'ABANDONO_EM']
+    ordem_colunas = ['NO_MUNICIPIO'    , 'CO_MUNICIPIO',
+                     'QT_MAT_EF_AF'    , 'QT_MAT_EF_AF_11_14_ANOS'    , 'APROVACAO_EF_AF'    , 'REPROVACAO_EF_AF'    , 'ABANDONO_EF_AF',
+                     'QT_MAT_EF_AF_EST'                               , 'APROVACAO_EF_AF_EST', 'REPROVACAO_EF_AF_EST', 'ABANDONO_EF_AF_EST',
+                     'QT_MAT_EM'       , 'QT_MAT_EM_15_17_ANOS'       , 'APROVACAO_EM'       , 'REPROVACAO_EM'       , 'ABANDONO_EM',
+                     'QT_MAT_EM_EST'                                  , 'APROVACAO_EM_EST'   , 'REPROVACAO_EM_EST'   , 'ABANDONO_EM_EST']
 
     if not os.path.isfile(MUNICIPIO_PICKLE_FILEPATH):
         montar_tabela_brasil_sp().to_pickle(MUNICIPIO_PICKLE_FILEPATH)
     df = pd.read_pickle(MUNICIPIO_PICKLE_FILEPATH)
     df = df.reset_index()[ordem_colunas]
-    header_size = 2
+    header_size = 3
     sheet_name = 'Municípios do ESP'
     df.to_excel(writer, sheet_name=sheet_name, startrow=2,  header=False, index=False)
     worksheet = writer.sheets[sheet_name]
 
-    worksheet.set_row(0, 30, estilos['header'])
-    worksheet.set_row(1, 60, estilos['header'])
+    for i in range(header_size):
+        size = 20 if i != header_size-1 else 60
+        worksheet.set_row(i, size, estilos['header'])
+
     for i, val in enumerate(colunas): 
         if val:
-            worksheet.write(1, i, val, estilos['h1'])
+            worksheet.write(header_size-1, i, val, estilos['h1'])
 
     for i in range(df.shape[1]):
         if i == 0:
@@ -375,19 +384,31 @@ def preparar_xlsx_municipio(writer, estilos):
             worksheet.write_blank(df.shape[0]+header_size, i, '', estilos['fonte'])
 
     # Cabeçalho
-    worksheet.merge_range(0, 0, 1, 0, NO_MUN, estilos['h1'])
-    worksheet.merge_range(0, 1, 1, 1, CO_MUN, estilos['h1'])
-    worksheet.merge_range(0, 2, 0, 7, EF_AF, estilos['h1'])
-    worksheet.merge_range(0, 8, 0, 13, EM, estilos['h1'])
+    worksheet.merge_range(0, 0, header_size-1, 0, NO_MUN, estilos['h1'])
+    worksheet.merge_range(0, 1, header_size-1, 1, CO_MUN, estilos['h1'])
+
+    worksheet.merge_range(header_size-3, 2 , header_size-3, 10, EF_AF, estilos['h1'])
+    worksheet.merge_range(header_size-3, 11, header_size-3, 19, EM, estilos['h1'])
+
+    worksheet.merge_range(header_size-2, 2 , header_size-2, 6 , DEP_TO, estilos['h1'])
+    worksheet.merge_range(header_size-2, 7 , header_size-2, 10, DEP_ET, estilos['h1'])
+    worksheet.merge_range(header_size-2, 11, header_size-2, 15, DEP_TO, estilos['h1'])
+    worksheet.merge_range(header_size-2, 16, header_size-2, 19, DEP_ET, estilos['h1'])
 
     worksheet.set_column(0, 0, 30, estilos['h_left'])
     worksheet.set_column(1, 1, 11, estilos['h_center'])
 
-    worksheet.set_column(2, 4, 14, estilos['int'])
-    worksheet.set_column(5, 7, 14, estilos['%'])
+    worksheet.set_column(2, 3, 14, estilos['int'])
+    worksheet.set_column(4, 6, 14, estilos['%'])
+    worksheet.set_column(7, 7, 14, estilos['int'])
+    worksheet.set_column(8, 10, 14, estilos['%'])
 
-    worksheet.set_column(8, 10, 14, estilos['int'])
-    worksheet.set_column(11, 13, 14, estilos['%'])
+    worksheet.set_column(11, 12, 14, estilos['int'])
+    worksheet.set_column(13, 15, 14, estilos['%'])
+    worksheet.set_column(16, 16, 14, estilos['int'])
+    worksheet.set_column(17, 19, 14, estilos['%'])
+
+    worksheet.freeze_panes(3, 2)
 
 
 def montar_xlsx():
