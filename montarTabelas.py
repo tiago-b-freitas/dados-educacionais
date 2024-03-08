@@ -40,6 +40,7 @@ COLUNAS_FREQUENCIA = [
 ]
 
 UN_GEO = 'Unidade Geográfica'
+RA_    = 'Regiões Administrativas'
 TP_DEP = 'Dependência Administrativa'
 EF_AF  = 'Ensino Fundamental - Anos Finais' 
 EM     = 'Ensino Médio'
@@ -51,6 +52,8 @@ TX_REP = 'Taxa de Reprovação'
 TX_ABN = 'Taxa de Abandono'
 
 BRASIL_SP_PICKLE_FILEPATH = './pickles/brasil-sp.pickle'
+RA_PICKLE_FILEPATH = './pickles/ra.pickle'
+MUNICIPIO_FILEPATH = './pickle/municipio.pickle'    
 
 def padronizar_mat(df):
     df = df.rename(columns={'QT_MAT_MED': 'QT_MAT_EM',
@@ -128,17 +131,13 @@ def montar_tabela_frequencia(dependencia):
 
     taxas_dict = {
         'UNIDGEO': ['Brasil', 'São Paulo'],
-
         'TP_DEPENDENCIA': [dependencia, dependencia],
-
         'TAXA_BRUTA_EF_AF': [taxa_bruta_brasil_EF_AF, taxa_bruta_sp_EF_AF],
-
         'TAXA_BRUTA_EM': [taxa_bruta_brasil_EM, taxa_bruta_sp_EM],
-
         'TAXA_LIQUIDA_EF_AF': [taxa_liquida_brasil_EF_AF, taxa_liquida_sp_EF_AF],
-
         'TAXA_LIQUIDA_EM': [taxa_liquida_brasil_EM, taxa_liquida_sp_EM],
     }
+    
     return pd.DataFrame(taxas_dict).set_index(COLUNAS_INDEX_BRASIL_SP)
 
 def montar_tabela_brasil_sp():
@@ -269,69 +268,112 @@ def preparar_xlsx_brasil(writer, estilos):
     df = pd.read_pickle(BRASIL_SP_PICKLE_FILEPATH)
     df = df[ordem_colunas].reset_index()
     #df.columns = pd.MultiIndex.from_arrays(arrays)
-    
+    header_size = 2
     brasil_sheet = 'Brasil e São Paulo'
     df.to_excel(writer, sheet_name=brasil_sheet, startrow=2,  header=False, index=False)
-
     worksheet = writer.sheets[brasil_sheet]
-    worksheet.merge_range(0, 0, 1, 0, UN_GEO)
-    worksheet.merge_range(0, 1, 1, 1, TP_DEP)
-    worksheet.merge_range(0, 2, 0, 7, EF_AF)
-    worksheet.merge_range(0, 8, 0, 13, EM)
+
+    worksheet.set_row(0, 30, estilos['header'])
+    worksheet.set_row(1, 60, estilos['header'])
+    for i, val in enumerate(arrays[1]): 
+        if val:
+            worksheet.write(1, i, val, estilos['h1'])
+
+    for i in range(df.shape[1]):
+        if i == 0:
+            worksheet.write(df.shape[0]+header_size, i, 'Fonte: INEP - Censo Escolar da Educação Básica 2022 e 2023; IBGE - Pesquisa Nacional por Amostra de Domicílios Contínua 4º trimestre 2023', estilos['fonte'])
+        else:
+            worksheet.write_blank(df.shape[0]+header_size, i, '', estilos['fonte'])
+
+    # Cabeçalho
+    worksheet.merge_range(0, 0, 1, 0, UN_GEO, estilos['h1'])
+    worksheet.merge_range(0, 1, 1, 1, TP_DEP, estilos['h1'])
+    worksheet.merge_range(0, 2, 0, 7, EF_AF, estilos['h1'])
+    worksheet.merge_range(0, 8, 0, 13, EM, estilos['h1'])
     
-    worksheet.set_column(0, 1, 14)
+    # Índice
+    worksheet.merge_range(2, 0, 7, 0, 'Brasil', estilos['h1'])
+    worksheet.merge_range(8, 0, 13, 0, 'São Paulo', estilos['h1'])
+
+
+    worksheet.set_column(0, 1, 14, estilos['header'])
     worksheet.set_column(2, 2, 14, estilos['int'])
     worksheet.set_column(3, 7, 14, estilos['%'])
     worksheet.set_column(8, 8, 14, estilos['int'])
     worksheet.set_column(9, 13, 14, estilos['%'])
      
+
+def preparar_xlsx_RA(writer, estilos):
+    
+    colunas = ['', QT_MAT, TX_APR, TX_REP, TX_ABN, QT_MAT, TX_APR, TX_REP, TX_ABN]
+
+    ordem_colunas = ['QT_MAT_EF_AF', 'APROVACAO_EF_AF', 'REPROVACAO_EF_AF', 'ABANDONO_EF_AF',
+                     'QT_MAT_EM', 'APROVACAO_EM', 'REPROVACAO_EM', 'ABANDONO_EM']
+
+    if not os.path.isfile(RA_PICKLE_FILEPATH):
+        montar_tabela_brasil_sp().to_pickle(RA_PICKLE_FILEPATH)
+    df = pd.read_pickle(RA_PICKLE_FILEPATH)
+    df = df[ordem_colunas].reset_index()
+    header_size = 2
+    sheet_name = 'Regiões Administrativas do ESP'
+    df.to_excel(writer, sheet_name=sheet_name, startrow=2,  header=False, index=False)
+    worksheet = writer.sheets[sheet_name]
+
     worksheet.set_row(0, 30, estilos['header'])
-    worksheet.set_row(1, 30, estilos['header'])
-    for i, val in enumerate(arrays[1]): 
+    worksheet.set_row(1, 60, estilos['header'])
+    for i, val in enumerate(colunas): 
         if val:
-            worksheet.write(1, i, val, estilos['header'])
+            worksheet.write(1, i, val, estilos['h1'])
+
+    for i in range(df.shape[1]):
+        if i == 0:
+            worksheet.write(df.shape[0]+header_size, i, 'Fonte: INEP - Censo Escolar da Educação Básica 2022 e 2023', estilos['fonte'])
+        else:
+            worksheet.write_blank(df.shape[0]+header_size, i, '', estilos['fonte'])
+
+    # Cabeçalho
+    worksheet.merge_range(0, 0, 1, 0, RA_, estilos['h1'])
+    worksheet.merge_range(0, 1, 0, 4, EF_AF, estilos['h1'])
+    worksheet.merge_range(0, 5, 0, 8, EM, estilos['h1'])
+
+    worksheet.set_column(0, 0, 45, estilos['h_left'])
+    worksheet.set_column(1, 1, 14, estilos['int'])
+    worksheet.set_column(2, 4, 14, estilos['%'])
+    worksheet.set_column(5, 5, 14, estilos['int'])
+    worksheet.set_column(6, 8, 14, estilos['%'])
 
 def montar_xlsx():
-    #df_RA = pd.read_pickle('ra.p')
-    #df_mun = pd.read_pickle('mun.p')
-
     with pd.ExcelWriter('001-boletim-educacional.xlsx', engine='xlsxwriter') as writer:
         workbook  = writer.book
-        format_int  = workbook.add_format({'num_format': '#,##0'})
-        format_perc = workbook.add_format({'num_format': '0.00%'})
-        format_header = workbook.add_format({'text_wrap': True,
-                                             'valign': 'vcenter',
-                                             'align': 'center'})
+
+        # https://xlsxwriter.readthedocs.io/format.html
+        normal = {'font_name': 'Arial', 'font_size': 10}
+        header = {'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'bold': True}
+        format_int  = workbook.add_format({**normal, 'num_format': '#,##0'})
+        format_perc = workbook.add_format({**normal, 'num_format': '0.00%'})
+        format_header = workbook.add_format({**normal,
+                                             **header})
+        format_h1 = workbook.add_format({**normal,
+                                         **header,
+                                         'bottom': True,
+                                         'left': True})
+        format_hleft = workbook.add_format({**normal,
+                                            **header,
+                                            'text_wrap': False,
+                                            'align': 'left'})
+        format_top = workbook.add_format({**normal, 'top': True})
+        format_fonte = workbook.add_format({**normal, 'top': True, 'font_size': 8})
+
         estilos = {'int': format_int,
                    '%':   format_perc,
-                   'header': format_header}
+                   'header': format_header,
+                   'h1': format_h1,
+                   'h_left': format_hleft,
+                   'top': format_top,
+                   'fonte': format_fonte}
     
         preparar_xlsx_brasil(writer, estilos)
-    
-    #from openpyxl.reader.excel import load_workbook
-    
-    #wb = load_workbook('001-boletim-educacional.xlsx')
-    #ws = wb.active
-    #ws.delete_cols(1)
-    #wb.save('teste.xlsx')
-        #ra_sheet = 'Regiões Administrativas de SP'
-        #mun_sheet = 'Municípios de SP'
-
-        #df_RA.to_excel(writer, sheet_name=ra_sheet)
-        #df_mun.to_excel(writer, sheet_name=mun_sheet)
-
-        #worksheet_ra = writer.sheets[ra_sheet]
-        #worksheet_mun = writer.sheets[mun_sheet]
-
-
-        #worksheet_ra.set_column(0, 0, 30)
-        #worksheet_ra.set_column(1, 2, 14, format_int)
-        #worksheet_ra.set_column(3, 8, 14, format_perc)
-
-        #worksheet_mun.set_column(0, 0, 14)
-        #worksheet_mun.set_column(1, 1, 30)
-        #worksheet_mun.set_column(2, 9, 14, format_int)
-        #worksheet_mun.set_column(10, 27, 14, format_perc)
+        preparar_xlsx_RA(writer, estilos)
 
 
 montar_xlsx()
