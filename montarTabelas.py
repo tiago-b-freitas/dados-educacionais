@@ -200,7 +200,8 @@ def montar_tabela_RA():
     # Dados de matrícula
     df = df_RA.merge(df_mat_sp_mun).groupby('NO_RA')[COLUNAS_MAT_QT].sum()
     df_est = df_RA.merge(df_mat_sp_mun_est).groupby('NO_RA')[[col+'_EST' for col in COLUNAS_MAT_QT]].sum()
-    df = pd.concat([df, df_est], axis=1)
+    df_idade = df_RA.merge(df_mat_sp_11a17_mun.reset_index()).groupby('NO_RA')[COLUNAS_MAT_QT_IDADE].sum()
+    df = pd.concat([df, df_est, df_idade], axis=1)
 
     # Dados de rendimento
     df_mat_tmp = padronizar_mat(matricula.obter_df(ANO_RENDIMENTO, colunas=COLUNAS_MAT))
@@ -210,7 +211,8 @@ def montar_tabela_RA():
                                      (df_ren_mun.TP_DEPENDENCIA == dep)]
 
         df_ren_tmp = df_ren_tmp[COLUNAS_MUN + COLUNAS_REN_TAXA]
-        
+
+        DEP = '_EST' if dep == 'Estadual' else ''
         dep = ['Estadual'] if dep == 'Estadual' else ['Privada', 'Federal', 'Estadual', 'Municipal']
         df_mat_dep = df_mat_tmp[(df_mat_tmp.SG_UF == 'SP') &
                                  df_mat_tmp.TP_DEPENDENCIA.isin(dep) &
@@ -219,10 +221,8 @@ def montar_tabela_RA():
         df_mat_dep = df_mat_dep.groupby('CO_MUNICIPIO')[COLUNAS_MAT_QT].sum().reset_index()
 
         df_tmp = df_RA.merge(df_ren_tmp).merge(df_mat_dep)
-        print(df_tmp)
         g = df_tmp.groupby('NO_RA')
 
-        DEP = '_EST' if dep == 'Estadual' else ''
         cols = []
         for tipo_rendimento in ('APROVACAO', 'REPROVACAO', 'ABANDONO'):
             for etapa in ('EM', 'EF_AF'):
@@ -283,7 +283,7 @@ def preparar_xlsx_brasil(writer, estilos):
     df = df[ordem_colunas].reset_index()
     header_size = 2
     sheet_name = 'Brasil e São Paulo'
-    df.to_excel(writer, sheet_name=sheet_name, startrow=2,  header=False, index=False)
+    df.to_excel(writer, sheet_name=sheet_name, startrow=header_size,  header=False, index=False)
     worksheet = writer.sheets[sheet_name]
 
     worksheet.set_row(0, 30, estilos['header'])
@@ -317,25 +317,32 @@ def preparar_xlsx_brasil(writer, estilos):
      
 
 def preparar_xlsx_RA(writer, estilos):
-    colunas = ['', QT_MAT, TX_APR, TX_REP, TX_ABN, QT_MAT, TX_APR, TX_REP, TX_ABN]
+    colunas = ['', QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN,
+                   QT_MAT, TX_APR, TX_REP, TX_ABN,
+                   QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN,
+                   QT_MAT, TX_APR, TX_REP, TX_ABN]
 
-    ordem_colunas = ['QT_MAT_EF_AF', 'APROVACAO_EF_AF', 'REPROVACAO_EF_AF', 'ABANDONO_EF_AF',
-                     'QT_MAT_EM', 'APROVACAO_EM', 'REPROVACAO_EM', 'ABANDONO_EM']
+    ordem_colunas = ['QT_MAT_EF_AF'    , 'QT_MAT_EF_AF_11_14_ANOS'    , 'APROVACAO_EF_AF'    , 'REPROVACAO_EF_AF'    , 'ABANDONO_EF_AF',
+                     'QT_MAT_EF_AF_EST'                               , 'APROVACAO_EF_AF_EST', 'REPROVACAO_EF_AF_EST', 'ABANDONO_EF_AF_EST',
+                     'QT_MAT_EM'       , 'QT_MAT_EM_15_17_ANOS'       , 'APROVACAO_EM'       , 'REPROVACAO_EM'       , 'ABANDONO_EM',
+                     'QT_MAT_EM_EST'                                  , 'APROVACAO_EM_EST'   , 'REPROVACAO_EM_EST'   , 'ABANDONO_EM_EST']
 
     if not os.path.isfile(RA_PICKLE_FILEPATH):
-        montar_tabela_brasil_sp().to_pickle(RA_PICKLE_FILEPATH)
+        montar_tabela_RA().to_pickle(RA_PICKLE_FILEPATH)
     df = pd.read_pickle(RA_PICKLE_FILEPATH)
     df = df[ordem_colunas].reset_index()
-    header_size = 2
+    header_size = 3
     sheet_name = 'Regiões Administrativas do ESP'
-    df.to_excel(writer, sheet_name=sheet_name, startrow=2,  header=False, index=False)
+    df.to_excel(writer, sheet_name=sheet_name, startrow=header_size,  header=False, index=False)
     worksheet = writer.sheets[sheet_name]
 
-    worksheet.set_row(0, 30, estilos['header'])
-    worksheet.set_row(1, 60, estilos['header'])
+    for i in range(header_size):
+        size = 20 if i != header_size-1 else 60
+        worksheet.set_row(i, size, estilos['header'])
+
     for i, val in enumerate(colunas): 
         if val:
-            worksheet.write(1, i, val, estilos['h1'])
+            worksheet.write(header_size-1, i, val, estilos['h1'])
 
     for i in range(df.shape[1]):
         if i == 0:
@@ -344,15 +351,29 @@ def preparar_xlsx_RA(writer, estilos):
             worksheet.write_blank(df.shape[0]+header_size, i, '', estilos['fonte'])
 
     # Cabeçalho
-    worksheet.merge_range(0, 0, 1, 0, RA_, estilos['h1'])
-    worksheet.merge_range(0, 1, 0, 4, EF_AF, estilos['h1'])
-    worksheet.merge_range(0, 5, 0, 8, EM, estilos['h1'])
+    worksheet.merge_range(0, 0, header_size-1, 0, RA_, estilos['h1'])
 
-    worksheet.set_column(0, 0, 45, estilos['h_left'])
-    worksheet.set_column(1, 1, 14, estilos['int'])
-    worksheet.set_column(2, 4, 14, estilos['%'])
-    worksheet.set_column(5, 5, 14, estilos['int'])
-    worksheet.set_column(6, 8, 14, estilos['%'])
+    worksheet.merge_range(header_size-3, 1 , header_size-3, 9, EF_AF, estilos['h1'])
+    worksheet.merge_range(header_size-3, 10, header_size-3, 18, EM, estilos['h1'])
+
+    worksheet.merge_range(header_size-2, 1 , header_size-2, 5 , DEP_TO, estilos['h1'])
+    worksheet.merge_range(header_size-2, 6 , header_size-2, 9, DEP_ET, estilos['h1'])
+    worksheet.merge_range(header_size-2, 10, header_size-2, 14, DEP_TO, estilos['h1'])
+    worksheet.merge_range(header_size-2, 15, header_size-2, 18, DEP_ET, estilos['h1'])
+
+    worksheet.set_column(0, 0, 50, estilos['h_left'])
+
+    worksheet.set_column(1, 2, 14, estilos['int'])
+    worksheet.set_column(3, 5, 14, estilos['%'])
+    worksheet.set_column(6, 6, 14, estilos['int'])
+    worksheet.set_column(7, 9, 14, estilos['%'])
+
+    worksheet.set_column(10, 11, 14, estilos['int'])
+    worksheet.set_column(12, 14, 14, estilos['%'])
+    worksheet.set_column(15, 15, 14, estilos['int'])
+    worksheet.set_column(16, 18, 14, estilos['%'])
+
+    worksheet.freeze_panes(0, 1)
 
 
 def preparar_xlsx_municipio(writer, estilos):
@@ -368,12 +389,12 @@ def preparar_xlsx_municipio(writer, estilos):
                      'QT_MAT_EM_EST'                                  , 'APROVACAO_EM_EST'   , 'REPROVACAO_EM_EST'   , 'ABANDONO_EM_EST']
 
     if not os.path.isfile(MUNICIPIO_PICKLE_FILEPATH):
-        montar_tabela_brasil_sp().to_pickle(MUNICIPIO_PICKLE_FILEPATH)
+        montar_tabela_municipio().to_pickle(MUNICIPIO_PICKLE_FILEPATH)
     df = pd.read_pickle(MUNICIPIO_PICKLE_FILEPATH)
     df = df.reset_index()[ordem_colunas]
     header_size = 3
     sheet_name = 'Municípios do ESP'
-    df.to_excel(writer, sheet_name=sheet_name, startrow=2,  header=False, index=False)
+    df.to_excel(writer, sheet_name=sheet_name, startrow=header_size,  header=False, index=False)
     worksheet = writer.sheets[sheet_name]
 
     for i in range(header_size):
@@ -386,7 +407,7 @@ def preparar_xlsx_municipio(writer, estilos):
 
     for i in range(df.shape[1]):
         if i == 0:
-            worksheet.write(df.shape[0]+header_size, i, 'Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023; IBGE – Censo Demográfico 2022', estilos['fonte'])
+            worksheet.write(df.shape[0]+header_size, i, 'Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023', estilos['fonte'])
         else:
             worksheet.write_blank(df.shape[0]+header_size, i, '', estilos['fonte'])
 
@@ -421,6 +442,12 @@ def preparar_xlsx_municipio(writer, estilos):
 def montar_xlsx():
     with pd.ExcelWriter('001-boletim-educacional.xlsx', engine='xlsxwriter') as writer:
         workbook  = writer.book
+        workbook.set_properties(
+                {
+                    'title': 'Boletim Educacional #1',
+                    'author': 'Tiago Barreiros de Freitas'
+                }
+        )
 
         # https://xlsxwriter.readthedocs.io/format.html
         normal = {'font_name': 'Arial', 'font_size': 10}
@@ -460,8 +487,6 @@ def montar_xlsx():
         preparar_xlsx_municipio(writer, estilos)
 
 
-#montar_xlsx()
-
 if __name__ == '__main__':
     
     df_mat = padronizar_mat(matricula.obter_df(ANO_MATRICULA, colunas=COLUNAS_MAT))
@@ -487,7 +512,8 @@ if __name__ == '__main__':
     
     df_frequencia = padronizar_fre(frequencia.obter_df(ANO_FREQUENCIA, TRI_FREQUENCIA, colunas=COLUNAS_FREQUENCIA))
 
-    #montar_tabela_brasil_sp().to_pickle(BRASIL_SP_PICKLE_FILEPATH)
-    print(montar_tabela_RA())#.to_pickle(RA_PICKLE_FILEPATH)
-    #montar_tabela_municipio().to_pickle(MUNICIPIO_PICKLE_FILEPATH)
+    #print(montar_tabela_brasil_sp())
+    #print(montar_tabela_RA())
+    #print(montar_tabela_municipio())
     
+    montar_xlsx()
