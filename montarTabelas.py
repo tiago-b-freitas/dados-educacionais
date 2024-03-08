@@ -270,7 +270,7 @@ def montar_tabela_municipio():
 
 def preparar_xlsx_brasil(writer, estilos):
     
-    colunas = ['', '', QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP, TX_ABN, QT_MAT, TX_LIQ, TX_BRU, TX_APR, TX_REP,  TX_ABN]
+    colunas = ['', '', QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP, TX_ABN, QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP,  TX_ABN]
 
     ordem_colunas = ['QT_MAT_EF_AF', 'TAXA_BRUTA_EF_AF', 'TAXA_LIQUIDA_EF_AF',
                      'APROVACAO_EF_AF', 'REPROVACAO_EF_AF', 'ABANDONO_EF_AF',
