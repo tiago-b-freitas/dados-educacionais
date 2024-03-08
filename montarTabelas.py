@@ -198,40 +198,47 @@ def montar_tabela_RA():
     df_RA = padronizar_RA(RA.obter_df())
 
     # Dados de matrícula
-    df = df_RA.merge(df_mat_sp_mun_est).groupby('NO_RA')[COLUNAS_MAT_QT].sum()
+    df = df_RA.merge(df_mat_sp_mun).groupby('NO_RA')[COLUNAS_MAT_QT].sum()
+    df_est = df_RA.merge(df_mat_sp_mun_est).groupby('NO_RA')[[col+'_EST' for col in COLUNAS_MAT_QT]].sum()
+    df = pd.concat([df, df_est], axis=1)
 
     # Dados de rendimento
-    df_ren_tmp =  df_ren_mun.loc[(df_ren_mun.SG_UF == 'SP') &
-                                 (df_ren_mun.NO_CATEGORIA == 'Total') &
-                                 (df_ren_mun.TP_DEPENDENCIA == 'Estadual')]
-
-    df_ren_tmp = df_ren_tmp[COLUNAS_MUN + COLUNAS_REN_TAXA]
-
     df_mat_tmp = padronizar_mat(matricula.obter_df(ANO_RENDIMENTO, colunas=COLUNAS_MAT))
-    df_mat_tmp = df_mat_tmp[(df_mat_tmp.SG_UF == 'SP') &
-                            (df_mat_tmp.TP_DEPENDENCIA == 'Estadual') &
-                            (df_mat_tmp.TP_SITUACAO_FUNCIONAMENTO == 1)]
+    for dep in ('Total', 'Estadual'):
+        df_ren_tmp =  df_ren_mun.loc[(df_ren_mun.SG_UF == 'SP') &
+                                     (df_ren_mun.NO_CATEGORIA == 'Total') &
+                                     (df_ren_mun.TP_DEPENDENCIA == dep)]
 
-    df_mat_tmp = df_mat_tmp.groupby('CO_MUNICIPIO')[COLUNAS_MAT_QT].sum().reset_index()
+        df_ren_tmp = df_ren_tmp[COLUNAS_MUN + COLUNAS_REN_TAXA]
+        
+        dep = ['Estadual'] if dep == 'Estadual' else ['Privada', 'Federal', 'Estadual', 'Municipal']
+        df_mat_dep = df_mat_tmp[(df_mat_tmp.SG_UF == 'SP') &
+                                 df_mat_tmp.TP_DEPENDENCIA.isin(dep) &
+                                (df_mat_tmp.TP_SITUACAO_FUNCIONAMENTO == 1)]
 
-    df_tmp = df_RA.merge(df_ren_tmp).merge(df_mat_tmp)
-    g = df_tmp.groupby('NO_RA')
+        df_mat_dep = df_mat_dep.groupby('CO_MUNICIPIO')[COLUNAS_MAT_QT].sum().reset_index()
 
-    cols = [] 
-    for tipo_rendimento in ('APROVACAO', 'REPROVACAO', 'ABANDONO'):
-        for etapa in ('EM', 'EF_AF'):
-            col = f'{tipo_rendimento}_{etapa}'
-            cols.append(g.apply(lambda g: ((g[f'QT_MAT_{etapa}'] * g[col]).sum()
-                                / g[f'QT_MAT_{etapa}'].sum()) / 100).to_frame(f'{tipo_rendimento}_{etapa}'))
+        df_tmp = df_RA.merge(df_ren_tmp).merge(df_mat_dep)
+        print(df_tmp)
+        g = df_tmp.groupby('NO_RA')
 
-    df = pd.concat([df, *cols], axis=1)
+        DEP = '_EST' if dep == 'Estadual' else ''
+        cols = []
+        for tipo_rendimento in ('APROVACAO', 'REPROVACAO', 'ABANDONO'):
+            for etapa in ('EM', 'EF_AF'):
+                col = f'{tipo_rendimento}_{etapa}'
+                cols.append(g.apply(lambda g: ((g[f'QT_MAT_{etapa}'] * g[col]).sum()
+                                    / g[f'QT_MAT_{etapa}'].sum()) / 100).to_frame(f'{tipo_rendimento}_{etapa}{DEP}'))
+
+        df = pd.concat([df, *cols], axis=1)
+
     return df
 
 
 def montar_tabela_municipio():
     # Dados de matrícula da rede estadual
     df     = df_mat_sp_mun.set_index(COLUNAS_MUN)
-    df_est = df_mat_sp_mun_est.set_index(COLUNAS_MUN).rename(columns={col: col+'_EST' for col in COLUNAS_MAT_QT})
+    df_est = df_mat_sp_mun_est.set_index(COLUNAS_MUN)
     df     = pd.concat([df_pop_EF_AF.iloc[2:], df_pop_EM.iloc[2:], df, df_est, df_mat_sp_11a17_mun], axis=1)
 
     # Dados de escolarização bruta
@@ -453,9 +460,9 @@ def montar_xlsx():
         preparar_xlsx_municipio(writer, estilos)
 
 
-montar_xlsx()
+#montar_xlsx()
 
-if __name__ == '__mbin__':
+if __name__ == '__main__':
     
     df_mat = padronizar_mat(matricula.obter_df(ANO_MATRICULA, colunas=COLUNAS_MAT))
 
@@ -463,7 +470,7 @@ if __name__ == '__mbin__':
     df_mat_sp = df_mat_brasil[df_mat_brasil.SG_UF == 'SP']
     df_mat_sp_mun = df_mat_sp.groupby(COLUNAS_MUN)[COLUNAS_MAT_QT].sum().reset_index()
     df_mat_sp_mun_est = (df_mat_sp[df_mat_sp.TP_DEPENDENCIA == 'Estadual']
-                         .groupby(COLUNAS_MUN)[COLUNAS_MAT_QT].sum().reset_index())
+                         .groupby(COLUNAS_MUN)[COLUNAS_MAT_QT].sum().rename(columns={col: col+'_EST' for col in COLUNAS_MAT_QT}).reset_index())
 
     df_ren_brasil = padronizar_ren(rendimento.obter_df(ANO_RENDIMENTO, rendimento.Tipo.BRASIL))
     df_ren_mun = padronizar_ren(rendimento.obter_df(ANO_RENDIMENTO, rendimento.Tipo.MUNICIPIO))
@@ -480,7 +487,7 @@ if __name__ == '__mbin__':
     
     df_frequencia = padronizar_fre(frequencia.obter_df(ANO_FREQUENCIA, TRI_FREQUENCIA, colunas=COLUNAS_FREQUENCIA))
 
-    montar_tabela_brasil_sp().to_pickle(BRASIL_SP_PICKLE_FILEPATH)
-    montar_tabela_RA().to_pickle('ra.p')
-    montar_tabela_municipio().to_pickle('mun.p')
+    #montar_tabela_brasil_sp().to_pickle(BRASIL_SP_PICKLE_FILEPATH)
+    print(montar_tabela_RA())#.to_pickle(RA_PICKLE_FILEPATH)
+    #montar_tabela_municipio().to_pickle(MUNICIPIO_PICKLE_FILEPATH)
     
