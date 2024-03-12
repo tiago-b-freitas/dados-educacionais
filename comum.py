@@ -3,7 +3,8 @@ import os
 import requests
 
 # Setup inicial
-PATH = '/mnt/g/dados-educacionais/'
+with open('path.txt') as f:
+    PATH = f.read().strip()
 PATH_MATRICULAS    = PATH + 'censo-escolar/'
 PATH_POPULACAO     = PATH + 'censo-demografico/'
 PATH_RA            = PATH + 'RA/'
