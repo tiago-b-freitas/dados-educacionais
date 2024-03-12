@@ -56,34 +56,36 @@ def contar_header(estrutura, n=1):
         return contar_header(estrutura[val], n+1)
 
 def parse_estrutura(worksheet, estrutura, coluna_offset, estilos, linha_inicial=0):
-    coluna_atual = defaultdict(int)
+    col_nivel0 = coluna_offset
+    col_nivel1 = coluna_offset
+    
     if isinstance(estrutura, list):
+        col = coluna_offset
         for val in estrutura:
-            col = coluna_atual[linha_inicial]+coluna_offset
             worksheet.write(linha_inicial,
                             col,
                             val.titulo,
                             estilos[HEADER_PADRAO])
             worksheet.set_column(col, col, val.tamanho, estilos[val.estilo])
-            coluna_atual[linha_inicial] += 1
-        return
-    col_nivel0 = coluna_offset
-    col_nivel1 = coluna_offset
+            col += 1
+        return col
+
     for val in estrutura:
         n_colunas = contar_rec(estrutura[val]) 
-        coluna_inicial = coluna_atual[linha_inicial] + coluna_offset
-        coluna_atual[linha_inicial] += n_colunas
+        col_nivel0_futura = col_nivel0 + n_colunas
         worksheet.merge_range(linha_inicial,
-                              coluna_inicial,
+                              col_nivel0,
                               linha_inicial,
-                              coluna_atual[linha_inicial],
+                              col_nivel0_futura - 1,
                               val.titulo,
                               estilos[val.estilo])
-        parse_estrutura(worksheet,
+        col_nivel0 = col_nivel0_futura
+        col_nivel1 = parse_estrutura(worksheet,
                         estrutura[val],
-                        coluna_offset,
+                        col_nivel1,
                         estilos,
                         linha_inicial=linha_inicial+1)
+    return col_nivel1
 
 def setup(workbook, titulo, autor):
 
@@ -129,7 +131,7 @@ def setup(workbook, titulo, autor):
 
     return estilos
 
-def criar_worksheet(writer, df, estrutura, estrutura_header, sheet_name, estilos):
+def criar_worksheet(writer, df, estrutura, estrutura_header, sheet_name, fonte, estilos):
 
     ordem_colunas = ordenar_colunas(estrutura)
     df = df.reset_index()[[v.nome for v in estrutura_header]+ordem_colunas]
@@ -147,5 +149,12 @@ def criar_worksheet(writer, df, estrutura, estrutura_header, sheet_name, estilos
     for i, val in enumerate(estrutura_header):
         worksheet.merge_range(0, i, header_size-1, i, val.titulo, estilos[HEADER_PADRAO])
         worksheet.set_column(i, i, val.tamanho, estilos[val.estilo])
+
+
+    for i in range(df.shape[1]):
+        if i == 0:
+            worksheet.write(df.shape[0]+header_size, i, fonte, estilos['fonte'])
+        else:
+            worksheet.write_blank(df.shape[0]+header_size, i, '', estilos['fonte'])
 
     parse_estrutura(worksheet, estrutura, coluna_offset, estilos)

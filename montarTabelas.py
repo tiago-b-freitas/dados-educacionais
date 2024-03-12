@@ -329,20 +329,18 @@ def preparar_xlsx_RA(writer, estilos):
     }
 
     estrutura_header = [RA_]
-    colunas = ['', QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN,
-                   QT_MAT, TX_APR, TX_REP, TX_ABN,
-                   QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN,
-                   QT_MAT, TX_APR, TX_REP, TX_ABN]
 
     if not os.path.isfile(RA_PICKLE_FILEPATH):
         montar_tabela_RA().to_pickle(RA_PICKLE_FILEPATH)
     df = pd.read_pickle(RA_PICKLE_FILEPATH)
     sheet_name = 'Regiões Administrativas do ESP'
+    fonte = 'Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023'
     fazer_xlsx.criar_worksheet(writer,
                               df,
                               estrutura,
                               estrutura_header,
                               sheet_name,
+                              fonte,
                               estilos)
 
 
