@@ -90,10 +90,10 @@ def parse_estrutura(worksheet, estrutura, coluna_offset, estilos, linha_inicial=
 def setup(workbook, titulo, autor):
 
     workbook.set_properties(
-            {
-                'title': titulo,
-                'author': autor,
-            }
+        {
+            'title': titulo,
+            'author': autor,
+        }
     )
 
     # https://xlsxwriter.readthedocs.io/format.html
