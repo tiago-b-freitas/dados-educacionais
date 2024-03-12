@@ -53,68 +53,11 @@ def tratar_info(full_filename):
     df_EM = tratar_df(pd.read_pickle(f'{PATH_OUT}pickles/em.pickle'), 'EM')
 
     COLUNAS_GEO = ['NO_UF', 'NO_MUNICIPIO', 'CO_MUNICIPIO']
-    df_EF_AF = df_EF_AF[COLUNAS_GEO + ['QT_MAT_EF_AF', '11 a 14 anos']].set_index(COLUNAS_GEO).rename(columns={'11 a 14 anos': 'QT_MAT_EF_AF_11_14_ANOS'})
-    df_EM = df_EM[COLUNAS_GEO + ['QT_MAT_EM', '15 a 17 anos']].set_index(COLUNAS_GEO).rename(columns={'15 a 17 anos': 'QT_MAT_EM_15_17_ANOS'})
+    df_EF_AF = df_EF_AF[COLUNAS_GEO + ['QT_MAT_EF_AF', '11 a 14 anos']].set_index(COLUNAS_GEO).rename(columns={'11 a 14 anos': 'QT_MAT_IDADE_ADEQUADA_EF_AF'})
+    df_EM = df_EM[COLUNAS_GEO + ['QT_MAT_EM', '15 a 17 anos']].set_index(COLUNAS_GEO).rename(columns={'15 a 17 anos': 'QT_MAT_IDADE_ADEQUADA_EM'})
     df = pd.concat([df_EF_AF, df_EM], axis=1).reset_index()
     for col in df.iloc[:, 2:].columns:
         df[col] = pd.to_numeric(df[col]).astype('UInt32')
-
-    return df
-
-def obter_dtype(s, df):
-    if pd.notna(s.Categoria):
-        return 'category'
-    elif s.Tipo == 'Char':
-        return 'string'
-    elif s.Tipo == 'Data':
-        return 'datetime'
-    elif s.Tipo == 'Num':
-        max_ = df[s['Nome da Variável']].max()
-        if isinstance(max_, str):
-            try:
-                max_ = int(max_)
-            except ValueError:
-                return 'string'
-        if max_ >= 2**32:
-            return 'UInt64'
-        elif max_ >= 2**16:
-            return 'UInt32'
-        elif max_ >= 2**8:
-            return 'UInt16'
-        else:
-            return 'UInt8'
-
-def otimizar_espaco(df, ano):
-    # Dicionário mais recente em 2024-03, tem informações sobre os censo escolares dos anos passados
-    with zipfile.ZipFile(f'{PATH_OUT}/microdados_censo_escolar_{ano}.zip') as zf:
-        for fn in zf.namelist():
-            if 'xlsx' in fn and 'dicion' in fn and '~' not in fn:
-                df_dict_tmp = pd.read_excel(zf.open(fn), header=None)
-    df_dict_tmp = df_dict_tmp[df_dict_tmp[0].notna() &
-                              (df_dict_tmp.iloc[:, ano % 2000 - 1] != 'n')].reset_index(drop=True)
-    df_dict = df_dict_tmp[df_dict_tmp[0].astype(str).str.isdecimal()]
-    header_index = df_dict.index[0] - 1
-    df_dict = df_dict.set_axis(df_dict_tmp.iloc[header_index, :], axis=1)
-    
-    df_dict['dtype'] = df_dict.apply(obter_dtype, axis=1, df=df)
-
-    dtype_dict = {nome: dtype for nome, dtype
-                              in df_dict[['Nome da Variável', 'dtype']]
-                                         .itertuples(index=False, name=None)
-                              if dtype != 'datetime'}
-    #df = df.astype(dtype_dict)
-    for col, dtype in dtype_dict.items():
-        try:
-            df[col] = df[col].astype(dtype)
-        except TypeError:
-            df[col] = df[col].astype('string')
-
-    if ano == 2023:
-        format_ = '%d%b%y:%X'
-    elif ano == 2022:
-        format_ = '%d%b%Y:%X'
-    for col in df.select_dtypes('O').columns:
-       df[col] = pd.to_datetime(df[col], format=format_)
 
     return df
 

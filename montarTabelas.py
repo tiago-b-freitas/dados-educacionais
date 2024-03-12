@@ -11,6 +11,9 @@ import RA
 import rendimento
 import sinopse
 
+import fazer_xlsx
+from fazer_xlsx import Coluna 
+
 ANO_MATRICULA  = 2023
 ANO_RENDIMENTO = 2022
 TRI_FREQUENCIA = 4
@@ -21,7 +24,7 @@ ANO_POPULACAO  = 2022
 COLUNAS_MAT = ['QT_MAT_MED', 'QT_MAT_FUND_AF', 'SG_UF', 'TP_DEPENDENCIA',
                'TP_SITUACAO_FUNCIONAMENTO', 'CO_MUNICIPIO', 'NO_MUNICIPIO']
 COLUNAS_MAT_QT = ['QT_MAT_EF_AF', 'QT_MAT_EM',]
-COLUNAS_MAT_QT_IDADE = ['QT_MAT_EF_AF_11_14_ANOS', 'QT_MAT_EM_15_17_ANOS']
+COLUNAS_MAT_QT_IDADE = ['QT_MAT_IDADE_ADEQUADA_EF_AF', 'QT_MAT_IDADE_ADEQUADA_EM']
 COLUNAS_REN_TAXA = ['APROVACAO_EF_AF', 'APROVACAO_EM', 'REPROVACAO_EF_AF',
                     'REPROVACAO_EM', 'ABANDONO_EF_AF', 'ABANDONO_EM']
 COLUNAS_MUN = ['CO_MUNICIPIO', 'NO_MUNICIPIO']
@@ -37,23 +40,23 @@ COLUNAS_FREQUENCIA = [
         'VD3004', # Nível de instrução mais elevado alcançado #3 Fundamental completo e #5 Médio completo
 ]
 
-UN_GEO = 'Unidade Geográfica'
-RA_    = 'Região Administrativa'
-NO_MUN = 'Município'
-CO_MUN = 'Código do Município'
-TP_DEP = 'Dependência Administrativa'
-EF_AF  = 'Ensino Fundamental – Anos Finais' 
-EM     = 'Ensino Médio'
-DEP_TO = 'Total'
-DEP_ET = 'Rede Estadual'
-QT_MAT = 'Número de Matrículas'
-QT_EST = f'{QT_MAT} da Rede Estadual'
-QT_IDA = f'{QT_MAT} na Faixa Etária Adequada'
-TX_LIQ = 'Taxa de Escolarização Líquida'
-TX_BRU = 'Taxa de Escolarização Bruta'
-TX_APR = 'Taxa de Aprovação'
-TX_REP = 'Taxa de Reprovação'
-TX_ABN = 'Taxa de Abandono'
+UN_GEO = Coluna(titulo='Unidade Geográfica')
+RA_    = Coluna(nome='NO_RA', titulo='Região Administrativa', tamanho=50, estilo='h_left')
+NO_MUN = Coluna(titulo='Município')
+CO_MUN = Coluna(titulo='Código do Município')
+TP_DEP = Coluna(nome='NO_DEPENDENCIA', titulo='Dependência Administrativa')
+EF_AF  = Coluna(nome='EF_AF', titulo='Ensino Fundamental – Anos Finais' )
+EM     = Coluna(nome='EM', titulo='Ensino Médio')
+DEP_TO = Coluna(nome='', titulo='Total')
+DEP_ET = Coluna(nome='EST', titulo='Rede Estadual')
+QT_MAT = Coluna(nome='QT_MAT', titulo='Número de Matrículas', estilo='int')
+QT_EST = Coluna(nome=f'{QT_MAT.nome}_EST', titulo=f'{QT_MAT.titulo} da Rede Estadual', estilo='int')
+QT_IDA = Coluna(nome=f'{QT_MAT.nome}_IDADE_ADEQUADA', titulo=f'{QT_MAT.titulo} na Faixa Etária Adequada', estilo='int')
+TX_LIQ = Coluna(nome='TAXA_LIQUIDA', titulo='Taxa de Escolarização Líquida', estilo='%')
+TX_BRU = Coluna(nome='TAXA_BRUTA', titulo='Taxa de Escolarização Bruta', estilo='%')
+TX_APR = Coluna(nome='APROVACAO', titulo='Taxa de Aprovação', estilo='%')
+TX_REP = Coluna(nome='REPROVACAO', titulo='Taxa de Reprovação', estilo='%')
+TX_ABN = Coluna(nome='ABANDONO', titulo='Taxa de Abandono', estilo='%')
 
 BRASIL_SP_PICKLE_FILEPATH = './pickles/brasil-sp.pickle'
 RA_PICKLE_FILEPATH = './pickles/ra.pickle'
@@ -317,63 +320,30 @@ def preparar_xlsx_brasil(writer, estilos):
      
 
 def preparar_xlsx_RA(writer, estilos):
+
+    estrutura = {
+        EF_AF: {DEP_TO: [QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN],
+                DEP_ET: [QT_MAT, TX_APR, TX_REP, TX_ABN]},
+        EM:    {DEP_TO: [QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN],
+                DEP_ET: [QT_MAT, TX_APR, TX_REP, TX_ABN]}
+    }
+
+    estrutura_header = [RA_]
     colunas = ['', QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN,
                    QT_MAT, TX_APR, TX_REP, TX_ABN,
                    QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN,
                    QT_MAT, TX_APR, TX_REP, TX_ABN]
 
-    ordem_colunas = ['QT_MAT_EF_AF'    , 'QT_MAT_EF_AF_11_14_ANOS'    , 'APROVACAO_EF_AF'    , 'REPROVACAO_EF_AF'    , 'ABANDONO_EF_AF',
-                     'QT_MAT_EF_AF_EST'                               , 'APROVACAO_EF_AF_EST', 'REPROVACAO_EF_AF_EST', 'ABANDONO_EF_AF_EST',
-                     'QT_MAT_EM'       , 'QT_MAT_EM_15_17_ANOS'       , 'APROVACAO_EM'       , 'REPROVACAO_EM'       , 'ABANDONO_EM',
-                     'QT_MAT_EM_EST'                                  , 'APROVACAO_EM_EST'   , 'REPROVACAO_EM_EST'   , 'ABANDONO_EM_EST']
-
     if not os.path.isfile(RA_PICKLE_FILEPATH):
         montar_tabela_RA().to_pickle(RA_PICKLE_FILEPATH)
     df = pd.read_pickle(RA_PICKLE_FILEPATH)
-    df = df[ordem_colunas].reset_index()
-    header_size = 3
     sheet_name = 'Regiões Administrativas do ESP'
-    df.to_excel(writer, sheet_name=sheet_name, startrow=header_size,  header=False, index=False)
-    worksheet = writer.sheets[sheet_name]
-
-    for i in range(header_size):
-        size = 20 if i != header_size-1 else 60
-        worksheet.set_row(i, size, estilos['header'])
-
-    for i, val in enumerate(colunas): 
-        if val:
-            worksheet.write(header_size-1, i, val, estilos['h1'])
-
-    for i in range(df.shape[1]):
-        if i == 0:
-            worksheet.write(df.shape[0]+header_size, i, 'Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023', estilos['fonte'])
-        else:
-            worksheet.write_blank(df.shape[0]+header_size, i, '', estilos['fonte'])
-
-    # Cabeçalho
-    worksheet.merge_range(0, 0, header_size-1, 0, RA_, estilos['h1'])
-
-    worksheet.merge_range(header_size-3, 1 , header_size-3, 9, EF_AF, estilos['h1'])
-    worksheet.merge_range(header_size-3, 10, header_size-3, 18, EM, estilos['h1'])
-
-    worksheet.merge_range(header_size-2, 1 , header_size-2, 5 , DEP_TO, estilos['h1'])
-    worksheet.merge_range(header_size-2, 6 , header_size-2, 9, DEP_ET, estilos['h1'])
-    worksheet.merge_range(header_size-2, 10, header_size-2, 14, DEP_TO, estilos['h1'])
-    worksheet.merge_range(header_size-2, 15, header_size-2, 18, DEP_ET, estilos['h1'])
-
-    worksheet.set_column(0, 0, 50, estilos['h_left'])
-
-    worksheet.set_column(1, 2, 14, estilos['int'])
-    worksheet.set_column(3, 5, 14, estilos['%'])
-    worksheet.set_column(6, 6, 14, estilos['int'])
-    worksheet.set_column(7, 9, 14, estilos['%'])
-
-    worksheet.set_column(10, 11, 14, estilos['int'])
-    worksheet.set_column(12, 14, 14, estilos['%'])
-    worksheet.set_column(15, 15, 14, estilos['int'])
-    worksheet.set_column(16, 18, 14, estilos['%'])
-
-    worksheet.freeze_panes(0, 1)
+    fazer_xlsx.criar_worksheet(writer,
+                              df,
+                              estrutura,
+                              estrutura_header,
+                              sheet_name,
+                              estilos)
 
 
 def preparar_xlsx_municipio(writer, estilos):
@@ -442,52 +412,16 @@ def preparar_xlsx_municipio(writer, estilos):
 def montar_xlsx():
     with pd.ExcelWriter('001-boletim-educacional.xlsx', engine='xlsxwriter') as writer:
         workbook  = writer.book
-        workbook.set_properties(
-                {
-                    'title': 'Boletim Educacional #1',
-                    'author': 'Tiago Barreiros de Freitas'
-                }
-        )
+        estilos = fazer_xlsx.setup(workbook,
+                         'Boletim Educacional #1',
+                         'Tiago Barreiros de Freitas')
 
-        # https://xlsxwriter.readthedocs.io/format.html
-        normal = {'font_name': 'Arial', 'font_size': 10}
-        header = {'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'bold': True}
-        format_white = workbook.add_format({'bg_color': 'white', 'pattern': 1})
-        format_int  = workbook.add_format({**normal, 'num_format': '#,##0'})
-        format_perc = workbook.add_format({**normal, 'num_format': '0.0%'})
-        format_header = workbook.add_format({**normal,
-                                             **header})
-        format_h1 = workbook.add_format({**normal,
-                                         **header,
-                                         'bottom': True,
-                                         'left': True})
-        format_hleft = workbook.add_format({**normal,
-                                            **header,
-                                            'text_wrap': False,
-                                            'align': 'left'})
-        format_hcenter = workbook.add_format({**normal,
-                                            **header,
-                                            'text_wrap': False,
-                                            'align': 'center'})
-        format_top = workbook.add_format({**normal, 'top': True})
-        format_fonte = workbook.add_format({**normal, 'top': True, 'font_size': 8})
-
-        estilos = {'int': format_int,
-                   '%':   format_perc,
-                   'header': format_header,
-                   'h1': format_h1,
-                   'h_left': format_hleft,
-                   'h_center': format_hcenter,
-                   'top': format_top,
-                   'fonte': format_fonte,
-                   'white': format_white}
-    
-        preparar_xlsx_brasil(writer, estilos)
+        #preparar_xlsx_brasil(writer, estilos)
         preparar_xlsx_RA(writer, estilos)
-        preparar_xlsx_municipio(writer, estilos)
+        #preparar_xlsx_municipio(writer, estilos)
 
 
-if __name__ == '__main__':
+if __name__ == '__mbin__':
     
     df_mat = padronizar_mat(matricula.obter_df(ANO_MATRICULA, colunas=COLUNAS_MAT))
 
@@ -516,4 +450,4 @@ if __name__ == '__main__':
     #print(montar_tabela_RA())
     #print(montar_tabela_municipio())
     
-    montar_xlsx()
+montar_xlsx()
