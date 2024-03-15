@@ -5,8 +5,9 @@ import pandas as pd
 TAMANHO_PADRAO = 14
 HEADER_PADRAO = 'h1'
 
-Coluna = namedtuple('Coluna', ['nome', 'titulo', 'tamanho', 'estilo'],
-                    defaults=['', '', TAMANHO_PADRAO, HEADER_PADRAO])
+Coluna = namedtuple('Coluna', ['nome', 'titulo', 'tamanho', 'estilo', 'm_header'],
+                    defaults=['', '', TAMANHO_PADRAO, HEADER_PADRAO, False])
+
 
 def contar_rec(est):
     if isinstance(est, list):
@@ -16,6 +17,7 @@ def contar_rec(est):
     else:
         return 1
 
+
 def ordenar_colunas(estrutura, sufixo=''):
     if isinstance(estrutura, list):
         return [val.nome+sufixo for val in estrutura]
@@ -24,36 +26,13 @@ def ordenar_colunas(estrutura, sufixo=''):
         ordem_colunas.extend(ordenar_colunas(estrutura[val], sufixo+'_'+val.nome if val.nome else sufixo))
     return ordem_colunas
 
-#UN_GEO = Coluna(titulo='Unidade Geográfica')
-#RA_    = Coluna(nome='NO_RA', titulo='Região Administrativa', tamanho=50, estilo='h_left')
-#NO_MUN = Coluna(titulo='Município')
-#CO_MUN = Coluna(titulo='Código do Município')
-#TP_DEP = Coluna(nome='NO_DEPENDENCIA', titulo='Dependência Administrativa')
-#EF_AF  = Coluna(nome='EF_AF', titulo='Ensino Fundamental – Anos Finais' )
-#EM     = Coluna(nome='EM', titulo='Ensino Médio')
-#DEP_TO = Coluna(nome='', titulo='Total')
-#DEP_ET = Coluna(nome='EST', titulo='Rede Estadual')
-#QT_MAT = Coluna(nome='QT_MAT', titulo='Número de Matrículas', estilo='int')
-#QT_EST = Coluna(nome=f'{QT_MAT.nome}_EST', titulo=f'{QT_MAT.titulo} da Rede Estadual', estilo='int')
-#QT_IDA = Coluna(nome=f'{QT_MAT.nome}_IDADE_ADEQUADA', titulo=f'{QT_MAT.titulo} na Faixa Etária Adequada', estilo='int')
-#TX_LIQ = Coluna(nome='TAXA_LIQUIDA', titulo='Taxa de Escolarização Líquida', estilo='%')
-#TX_BRU = Coluna(nome='TAXA_BRUTA', titulo='Taxa de Escolarização Bruta', estilo='%')
-#TX_APR = Coluna(nome='APROVACAO', titulo='Taxa de Aprovação', estilo='%')
-#TX_REP = Coluna(nome='REPROVACAO', titulo='Taxa de Reprovação', estilo='%')
-#TX_ABN = Coluna(nome='ABANDONO', titulo='Taxa de Abandono', estilo='%')
-
-#estrutura = {
-    #EF_AF: {DEP_TO: [QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN],
-            #DEP_ET: [QT_MAT, TX_APR, TX_REP, TX_ABN]},
-    #EM:    {DEP_TO: [QT_MAT, QT_IDA, TX_APR, TX_REP, TX_ABN],
-            #DEP_ET: [QT_MAT, TX_APR, TX_REP, TX_ABN]}
-#}
 
 def contar_header(estrutura, n=1):
     if isinstance(estrutura, list):
         return n
     for val in estrutura:
         return contar_header(estrutura[val], n+1)
+
 
 def parse_estrutura(worksheet, estrutura, coluna_offset, estilos, linha_inicial=0):
     col_nivel0 = coluna_offset
@@ -86,6 +65,7 @@ def parse_estrutura(worksheet, estrutura, coluna_offset, estilos, linha_inicial=
                         estilos,
                         linha_inicial=linha_inicial+1)
     return col_nivel1
+
 
 def setup(workbook, titulo, autor):
 
@@ -131,6 +111,7 @@ def setup(workbook, titulo, autor):
 
     return estilos
 
+
 def criar_worksheet(writer, df, estrutura, estrutura_header, sheet_name, fonte, estilos):
 
     ordem_colunas = ordenar_colunas(estrutura)
@@ -150,7 +131,6 @@ def criar_worksheet(writer, df, estrutura, estrutura_header, sheet_name, fonte, 
         worksheet.merge_range(0, i, header_size-1, i, val.titulo, estilos[HEADER_PADRAO])
         worksheet.set_column(i, i, val.tamanho, estilos[val.estilo])
 
-
     for i in range(df.shape[1]):
         if i == 0:
             worksheet.write(df.shape[0]+header_size, i, fonte, estilos['fonte'])
@@ -158,3 +138,14 @@ def criar_worksheet(writer, df, estrutura, estrutura_header, sheet_name, fonte, 
             worksheet.write_blank(df.shape[0]+header_size, i, '', estilos['fonte'])
 
     parse_estrutura(worksheet, estrutura, coluna_offset, estilos)
+
+    for i_col, h in enumerate(estrutura_header):
+        if h.m_header == True:
+            v_counts = df[h.nome].value_counts()
+            i_row_start = header_size
+            for n_row, val in zip(v_counts, v_counts.index):
+                i_row_end = i_row_start + n_row - 1
+                worksheet.merge_range(i_row_start, i_col, i_row_end, i_col, val, estilos['h1'])
+                i_row_start = i_row_end + 1
+
+    return worksheet

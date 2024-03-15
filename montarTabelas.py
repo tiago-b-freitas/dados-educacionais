@@ -40,11 +40,11 @@ COLUNAS_FREQUENCIA = [
         'VD3004', # Nível de instrução mais elevado alcançado #3 Fundamental completo e #5 Médio completo
 ]
 
-UN_GEO = Coluna(titulo='Unidade Geográfica')
+UN_GEO = Coluna(nome='UNIDGEO', titulo='Unidade Geográfica', estilo='h_center', m_header=True)
 RA_    = Coluna(nome='NO_RA', titulo='Região Administrativa', tamanho=50, estilo='h_left')
-NO_MUN = Coluna(nome='NO_MUNICIPIO', titulo='Município')
-CO_MUN = Coluna(nome='CO_MUNICIPIO', titulo='Código do Município')
-TP_DEP = Coluna(nome='NO_DEPENDENCIA', titulo='Dependência Administrativa')
+NO_MUN = Coluna(nome='NO_MUNICIPIO', titulo='Município', tamanho=30, estilo='h_left')
+CO_MUN = Coluna(nome='CO_MUNICIPIO', titulo='Código do Município', tamanho=11, estilo='h_center')
+TP_DEP = Coluna(nome='TP_DEPENDENCIA', titulo='Dependência Administrativa', estilo='h_center')
 EF_AF  = Coluna(nome='EF_AF', titulo='Ensino Fundamental – Anos Finais' )
 EM     = Coluna(nome='EM', titulo='Ensino Médio')
 DEP_TO = Coluna(nome='', titulo='Total')
@@ -58,6 +58,9 @@ TX_APR = Coluna(nome='APROVACAO', titulo='Taxa de Aprovação', estilo='%')
 TX_REP = Coluna(nome='REPROVACAO', titulo='Taxa de Reprovação', estilo='%')
 TX_ABN = Coluna(nome='ABANDONO', titulo='Taxa de Abandono', estilo='%')
 
+PICKLES_DIR = 'pickles'
+if not os.path.isdir(PICKLES_DIR):
+    os.mkdir(PICKLES_DIR)
 BRASIL_SP_PICKLE_FILEPATH = './pickles/brasil-sp.pickle'
 RA_PICKLE_FILEPATH = './pickles/ra.pickle'
 MUNICIPIO_PICKLE_FILEPATH = './pickles/municipio.pickle'    
@@ -155,7 +158,7 @@ def montar_tabela_frequencia(dependencia):
 def montar_tabela_brasil_sp():
 
     # Dados de matrícula 
-    df = df_mat_brasil.groupby('TP_DEPENDENCIA')[COLUNAS_MAT_QT].sum().reset_index()
+    df = df_mat_brasil.groupby('TP_DEPENDENCIA', observed=True)[COLUNAS_MAT_QT].sum().reset_index()
     df['UNIDGEO'] = 'Brasil'
 
     df_tmp = df_mat_brasil[COLUNAS_MAT_QT].sum()
@@ -168,7 +171,7 @@ def montar_tabela_brasil_sp():
     df_tmp['UNIDGEO'] = 'Brasil'
     df = pd.concat([df, df_tmp.to_frame().T], ignore_index=True)
 
-    df_tmp = df_mat_sp.groupby('TP_DEPENDENCIA')[COLUNAS_MAT_QT].sum().reset_index()
+    df_tmp = df_mat_sp.groupby('TP_DEPENDENCIA', observed=True)[COLUNAS_MAT_QT].sum().reset_index()
     df_tmp['UNIDGEO'] = 'São Paulo'
     df = pd.concat([df, df_tmp], ignore_index=True)
     
@@ -193,7 +196,7 @@ def montar_tabela_brasil_sp():
     df_tmp = df_tmp[['UNIDGEO', 'TP_DEPENDENCIA'] + COLUNAS_REN_TAXA].set_index(COLUNAS_INDEX_BRASIL_SP) / 100
 
     df = pd.concat([df, df_tmp], axis=1)
-
+    df = df.reindex(index=['Federal', 'Estadual', 'Municipal', 'Pública', 'Privada', 'Total'], level=1)
     return df
 
 
@@ -251,8 +254,8 @@ def montar_tabela_municipio():
     df['TX_ESC_BRUTA_EM_EST']    = df.QT_MAT_EM_EST.div(df.POP_15_17ANOS)
 
     # Dados de escolarização líquida
-    df['TX_ESC_LIQUIDA_EF_AF']     = df.QT_MAT_EF_AF_11_14_ANOS.div(df.POP_11_14ANOS)
-    df['TX_ESC_LIQUIDA_EM']        = df.QT_MAT_EM_15_17_ANOS.div(df.POP_15_17ANOS)
+    df['TX_ESC_LIQUIDA_EF_AF']     = df.QT_MAT_IDADE_ADEQUADA_EF_AF.div(df.POP_11_14ANOS)
+    df['TX_ESC_LIQUIDA_EM']        = df.QT_MAT_IDADE_ADEQUADA_EM.div(df.POP_15_17ANOS)
 
     # Dados de rendimento
     df_ren_tmp =  df_ren_mun.loc[(df_ren_mun.SG_UF == 'SP') &
@@ -272,52 +275,26 @@ def montar_tabela_municipio():
 
 
 def preparar_xlsx_brasil(writer, estilos):
-    
-    colunas = ['', '', QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP, TX_ABN, QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP,  TX_ABN]
 
-    ordem_colunas = ['QT_MAT_EF_AF', 'TAXA_BRUTA_EF_AF', 'TAXA_LIQUIDA_EF_AF',
-                     'APROVACAO_EF_AF', 'REPROVACAO_EF_AF', 'ABANDONO_EF_AF',
-                     'QT_MAT_EM', 'TAXA_BRUTA_EM', 'TAXA_LIQUIDA_EM',
-                     'APROVACAO_EM', 'REPROVACAO_EM', 'ABANDONO_EM']
+    estrutura = {EF_AF: [QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP, TX_ABN],
+                 EM:    [QT_MAT, TX_BRU, TX_LIQ, TX_APR, TX_REP, TX_ABN]}
+
+    estrutura_header = [UN_GEO, TP_DEP]
 
     if not os.path.isfile(BRASIL_SP_PICKLE_FILEPATH):
         montar_tabela_brasil_sp().to_pickle(BRASIL_SP_PICKLE_FILEPATH)
     df = pd.read_pickle(BRASIL_SP_PICKLE_FILEPATH)
-    df = df[ordem_colunas].reset_index()
-    header_size = 2
+
     sheet_name = 'Brasil e São Paulo'
-    df.to_excel(writer, sheet_name=sheet_name, startrow=header_size,  header=False, index=False)
-    worksheet = writer.sheets[sheet_name]
+    fonte = 'Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023; IBGE – Pesquisa Nacional por Amostra de Domicílios Contínua 4º trimestre 2023'
+    fazer_xlsx.criar_worksheet(writer,
+                              df,
+                              estrutura,
+                              estrutura_header,
+                              sheet_name,
+                              fonte,
+                              estilos)
 
-    worksheet.set_row(0, 30, estilos['header'])
-    worksheet.set_row(1, 60, estilos['header'])
-    for i, val in enumerate(colunas): 
-        if val:
-            worksheet.write(1, i, val, estilos['h1'])
-
-    for i in range(df.shape[1]):
-        if i == 0:
-            worksheet.write(df.shape[0]+header_size, i, 'Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023; IBGE – Pesquisa Nacional por Amostra de Domicílios Contínua 4º trimestre 2023', estilos['fonte'])
-        else:
-            worksheet.write_blank(df.shape[0]+header_size, i, '', estilos['fonte'])
-
-    # Cabeçalho
-    worksheet.merge_range(0, 0, 1, 0, UN_GEO, estilos['h1'])
-    worksheet.merge_range(0, 1, 1, 1, TP_DEP, estilos['h1'])
-    worksheet.merge_range(0, 2, 0, 7, EF_AF, estilos['h1'])
-    worksheet.merge_range(0, 8, 0, 13, EM, estilos['h1'])
-    
-    # Índice
-    worksheet.merge_range(2, 0, 7, 0, 'Brasil', estilos['h1'])
-    worksheet.merge_range(8, 0, 13, 0, 'São Paulo', estilos['h1'])
-
-
-    worksheet.set_column(0, 1, 14, estilos['header'])
-    worksheet.set_column(2, 2, 14, estilos['int'])
-    worksheet.set_column(3, 7, 14, estilos['%'])
-    worksheet.set_column(8, 8, 14, estilos['int'])
-    worksheet.set_column(9, 13, 14, estilos['%'])
-     
 
 def preparar_xlsx_RA(writer, estilos):
 
@@ -335,13 +312,15 @@ def preparar_xlsx_RA(writer, estilos):
     df = pd.read_pickle(RA_PICKLE_FILEPATH)
     sheet_name = 'Regiões Administrativas do ESP'
     fonte = 'Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023'
-    fazer_xlsx.criar_worksheet(writer,
+    worksheet = fazer_xlsx.criar_worksheet(writer,
                               df,
                               estrutura,
                               estrutura_header,
                               sheet_name,
                               fonte,
                               estilos)
+
+    worksheet.freeze_panes(0, 1)
 
 
 def preparar_xlsx_municipio(writer, estilos):
@@ -356,11 +335,11 @@ def preparar_xlsx_municipio(writer, estilos):
     estrutura_header = [NO_MUN, CO_MUN]
 
     if not os.path.isfile(MUNICIPIO_PICKLE_FILEPATH):
-        montar_tabela_RA().to_pickle(MUNICIPIO_PICKLE_FILEPATH)
+        montar_tabela_municipio().to_pickle(MUNICIPIO_PICKLE_FILEPATH)
     df = pd.read_pickle(MUNICIPIO_PICKLE_FILEPATH)
     sheet_name = 'Municípios do ESP'
     fonte = 'Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023'
-    fazer_xlsx.criar_worksheet(writer,
+    worksheet = fazer_xlsx.criar_worksheet(writer,
                               df,
                               estrutura,
                               estrutura_header,
@@ -368,7 +347,7 @@ def preparar_xlsx_municipio(writer, estilos):
                               fonte,
                               estilos)
 
-    #worksheet.freeze_panes(3, 2)
+    worksheet.freeze_panes(3, 2)
 
 
 def montar_xlsx():
@@ -378,12 +357,12 @@ def montar_xlsx():
                          'Boletim Educacional #1',
                          'Tiago Barreiros de Freitas')
 
-        #preparar_xlsx_brasil(writer, estilos)
+        preparar_xlsx_brasil(writer, estilos)
         preparar_xlsx_RA(writer, estilos)
         preparar_xlsx_municipio(writer, estilos)
 
 
-if __name__ == '__mbin__':
+if __name__ == '__main__':
     
     df_mat = padronizar_mat(matricula.obter_df(ANO_MATRICULA, colunas=COLUNAS_MAT))
 

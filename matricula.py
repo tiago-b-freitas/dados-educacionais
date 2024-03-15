@@ -14,7 +14,7 @@ CENSO_ESCOLAR_URL = 'https://www.gov.br/inep/pt-br/acesso-a-informacao/dados-abe
 PATH_OUT = comum.PATH_MATRICULAS
 CERTIFICADO_PATH = 'inep-gov-br-chain.pem'
 
-def unzip(zf):
+def unzip(zf): 
     with zipfile.ZipFile(zf, 'r') as z:
         for filename in z.namelist():
             if 'microdados' in filename.lower() and '.csv' in filename.lower() and 'suplemento' not in filename.lower():
@@ -78,11 +78,15 @@ def otimizar_espaco(df, ano):
                               in df_dict[['Nome da Variável', 'dtype']]
                                          .itertuples(index=False, name=None)
                               if dtype != 'datetime'}
-    #df = df.astype(dtype_dict)
+
     for col, dtype in dtype_dict.items():
         try:
             df[col] = df[col].astype(dtype)
         except TypeError:
+            print(f"TypeError: {col}")
+            df[col] = df[col].astype('string')
+        except ValueError:
+            print(f"ValueError: {col}")
             df[col] = df[col].astype('string')
 
     if ano == 2023:
