@@ -24,7 +24,8 @@ ANO_POPULACAO  = 2022
 COLUNAS_MAT = ['QT_MAT_MED', 'QT_MAT_FUND_AF', 'SG_UF', 'TP_DEPENDENCIA',
                'TP_SITUACAO_FUNCIONAMENTO', 'CO_MUNICIPIO', 'NO_MUNICIPIO']
 COLUNAS_MAT_QT = ['QT_MAT_EF_AF', 'QT_MAT_EM',]
-COLUNAS_MAT_QT_IDADE = ['QT_MAT_IDADE_ADEQUADA_EF_AF', 'QT_MAT_IDADE_ADEQUADA_EM']
+COLUNAS_MAT_QT_IDADE = ['QT_MAT_IDADE_ADEQUADA_EF_AF',
+                        'QT_MAT_IDADE_ADEQUADA_EM']
 COLUNAS_REN_TAXA = ['APROVACAO_EF_AF', 'APROVACAO_EM', 'REPROVACAO_EF_AF',
                     'REPROVACAO_EM', 'ABANDONO_EF_AF', 'ABANDONO_EM']
 COLUNAS_MUN = ['CO_MUNICIPIO', 'NO_MUNICIPIO']
@@ -123,13 +124,16 @@ def montar_tabela_frequencia(dependencia):
     pop_sp_11_14 = df_frequencia.query(f'{i11a14} and {SP}')['V1028'].sum()
     pop_sp_15_17 = df_frequencia.query(f'{i15a17} and {SP}')['V1028'].sum()
     
-    freq_brasil_EF_AF = df_frequencia.query(f'{EF_AF} {DEP}', engine='python')['V1028'].sum()
-    freq_brasil_EF_AF_11_14 = df_frequencia.query(f'{EF_AF} and {i11a14} {DEP}', engine='python')['V1028'].sum()
+    freq_brasil_EF_AF = df_frequencia.query(f'{EF_AF} {DEP}',
+                                            engine='python')['V1028'].sum()
+    freq_brasil_EF_AF_11_14 = df_frequencia.query(f'{EF_AF} and {i11a14} {DEP}',
+                                                  engine='python')['V1028'].sum()
     freq_brasil_EM = df_frequencia.query(f'{EM} {DEP}')['V1028'].sum()
     freq_brasil_EM_15_17 = df_frequencia.query(f'{EM} and {i15a17} {DEP}')['V1028'].sum()
 
     freq_sp_EF_AF = df_frequencia.query(f'{SP} and {EF_AF} {DEP}', engine='python')['V1028'].sum()
-    freq_sp_EF_AF_11_14 = df_frequencia.query(f'{SP} and {EF_AF} and {i11a14} {DEP}', engine='python')['V1028'].sum()
+    freq_sp_EF_AF_11_14 = df_frequencia.query(f'{SP} and {EF_AF} and {i11a14} {DEP}',
+                                              engine='python')['V1028'].sum()
     freq_sp_EM = df_frequencia.query(f'{SP} and {EM} {DEP}')['V1028'].sum()
     freq_sp_EM_15_17 = df_frequencia.query(f'{SP} and {EM} and {i15a17} {DEP}')['V1028'].sum()
 
@@ -158,7 +162,8 @@ def montar_tabela_frequencia(dependencia):
 def montar_tabela_brasil_sp():
 
     # Dados de matrícula 
-    df = df_mat_brasil.groupby('TP_DEPENDENCIA', observed=True)[COLUNAS_MAT_QT].sum().reset_index()
+    df = df_mat_brasil.groupby('TP_DEPENDENCIA',
+                               observed=True)[COLUNAS_MAT_QT].sum().reset_index()
     df['UNIDGEO'] = 'Brasil'
 
     df_tmp = df_mat_brasil[COLUNAS_MAT_QT].sum()
@@ -166,12 +171,14 @@ def montar_tabela_brasil_sp():
     df_tmp['UNIDGEO'] = 'Brasil'
     df = pd.concat([df, df_tmp.to_frame().T], ignore_index=True)
     
-    df_tmp = df_mat_brasil.loc[df_mat_brasil.TP_DEPENDENCIA != 'Privada', COLUNAS_MAT_QT].sum()
+    df_tmp = df_mat_brasil.loc[df_mat_brasil.TP_DEPENDENCIA != 'Privada',
+                               COLUNAS_MAT_QT].sum()
     df_tmp['TP_DEPENDENCIA'] = 'Pública'
     df_tmp['UNIDGEO'] = 'Brasil'
     df = pd.concat([df, df_tmp.to_frame().T], ignore_index=True)
 
-    df_tmp = df_mat_sp.groupby('TP_DEPENDENCIA', observed=True)[COLUNAS_MAT_QT].sum().reset_index()
+    df_tmp = df_mat_sp.groupby('TP_DEPENDENCIA',
+                               observed=True)[COLUNAS_MAT_QT].sum().reset_index()
     df_tmp['UNIDGEO'] = 'São Paulo'
     df = pd.concat([df, df_tmp], ignore_index=True)
     
@@ -192,11 +199,18 @@ def montar_tabela_brasil_sp():
     df = pd.concat([df, df_freq_tmp], axis=1)
 
     # Dados de rendimento
-    df_tmp = df_ren_brasil.loc[df_ren_brasil.UNIDGEO.isin(['Brasil', 'São Paulo']) & (df_ren_brasil.NO_CATEGORIA == 'Total')]
-    df_tmp = df_tmp[['UNIDGEO', 'TP_DEPENDENCIA'] + COLUNAS_REN_TAXA].set_index(COLUNAS_INDEX_BRASIL_SP) / 100
+    df_tmp = df_ren_brasil.loc[df_ren_brasil.UNIDGEO.isin(['Brasil', 'São Paulo']) 
+                               & (df_ren_brasil.NO_CATEGORIA == 'Total')]
+    df_tmp = df_tmp[['UNIDGEO', 'TP_DEPENDENCIA']
+                    + COLUNAS_REN_TAXA].set_index(COLUNAS_INDEX_BRASIL_SP) / 100
 
     df = pd.concat([df, df_tmp], axis=1)
-    df = df.reindex(index=['Federal', 'Estadual', 'Municipal', 'Pública', 'Privada', 'Total'], level=1)
+    df = df.reindex(index=['Federal',
+                           'Estadual',
+                           'Municipal',
+                           'Pública',
+                           'Privada',
+                           'Total'], level=1)
     return df
 
 
@@ -234,7 +248,8 @@ def montar_tabela_RA():
             for etapa in ('EM', 'EF_AF'):
                 col = f'{tipo_rendimento}_{etapa}'
                 cols.append(g.apply(lambda g: ((g[f'QT_MAT_{etapa}'] * g[col]).sum()
-                                    / g[f'QT_MAT_{etapa}'].sum()) / 100).to_frame(f'{tipo_rendimento}_{etapa}{DEP}'))
+                                    / g[f'QT_MAT_{etapa}'].sum()) / 100)
+                            .to_frame(f'{tipo_rendimento}_{etapa}{DEP}'))
 
         df = pd.concat([df, *cols], axis=1)
 
@@ -245,7 +260,11 @@ def montar_tabela_municipio():
     # Dados de matrícula da rede estadual
     df     = df_mat_sp_mun.set_index(COLUNAS_MUN)
     df_est = df_mat_sp_mun_est.set_index(COLUNAS_MUN)
-    df     = pd.concat([df_pop_EF_AF.iloc[2:], df_pop_EM.iloc[2:], df, df_est, df_mat_sp_11a17_mun], axis=1)
+    df     = pd.concat([df_pop_EF_AF.iloc[2:],
+                        df_pop_EM.iloc[2:],
+                        df,
+                        df_est,
+                        df_mat_sp_11a17_mun], axis=1)
 
     # Dados de escolarização bruta
     df['TX_ESC_BRUTA_EF_AF']     = df.QT_MAT_EF_AF.div(df.POP_11_14ANOS)
@@ -286,7 +305,8 @@ def preparar_xlsx_brasil(writer, estilos):
     df = pd.read_pickle(BRASIL_SP_PICKLE_FILEPATH)
 
     sheet_name = 'Brasil e São Paulo'
-    fonte = 'Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023; IBGE – Pesquisa Nacional por Amostra de Domicílios Contínua 4º trimestre 2023'
+    fonte = ('Fonte: INEP – Censo Escolar da Educação Básica 2022 e 2023;'
+             'IBGE – Pesquisa Nacional por Amostra de Domicílios Contínua 4º trimestre 2023')
     fazer_xlsx.criar_worksheet(writer,
                               df,
                               estrutura,
@@ -370,22 +390,38 @@ if __name__ == '__main__':
     df_mat_sp = df_mat_brasil[df_mat_brasil.SG_UF == 'SP']
     df_mat_sp_mun = df_mat_sp.groupby(COLUNAS_MUN)[COLUNAS_MAT_QT].sum().reset_index()
     df_mat_sp_mun_est = (df_mat_sp[df_mat_sp.TP_DEPENDENCIA == 'Estadual']
-                         .groupby(COLUNAS_MUN)[COLUNAS_MAT_QT].sum().rename(columns={col: col+'_EST' for col in COLUNAS_MAT_QT}).reset_index())
+                         .groupby(COLUNAS_MUN)[COLUNAS_MAT_QT]
+                         .sum()
+                         .rename(columns={col: col+'_EST' for col in COLUNAS_MAT_QT})
+                         .reset_index())
 
     df_ren_brasil = padronizar_ren(rendimento.obter_df(ANO_RENDIMENTO, rendimento.Tipo.BRASIL))
     df_ren_mun = padronizar_ren(rendimento.obter_df(ANO_RENDIMENTO, rendimento.Tipo.MUNICIPIO))
 
     df_populacao = populacao.obter_df(ANO_POPULACAO)
-    df_pop_EF_AF = df_populacao.loc[:, 11:14].sum(axis=1).to_frame('POP_11_14ANOS').astype('UInt64')
-    df_pop_EM    = df_populacao.loc[:, 15:17].sum(axis=1).to_frame('POP_15_17ANOS').astype('UInt64')
+    df_pop_EF_AF = (df_populacao.loc[:, 11:14]
+                    .sum(axis=1)
+                    .to_frame('POP_11_14ANOS')
+                    .astype('UInt64'))
+    df_pop_EM    = (df_populacao.loc[:, 15:17]
+                    .sum(axis=1)
+                    .to_frame('POP_15_17ANOS')
+                    .astype('UInt64'))
 
     df_sinopse = sinopse.obter_df(ANO_SINOPSE)
     
-    df_mat_brasil_11a17  = df_sinopse.loc[df_sinopse.NO_MUNICIPIO == 'Brasil', COLUNAS_MAT_QT_IDADE]
-    df_mat_sp_11a17      = df_sinopse.loc[df_sinopse.NO_MUNICIPIO == 'São Paulo', COLUNAS_MAT_QT_IDADE] 
-    df_mat_sp_11a17_mun  = df_sinopse.loc[(df_sinopse.NO_UF == 'São Paulo') & df_sinopse.CO_MUNICIPIO.notna(), COLUNAS_MUN + COLUNAS_MAT_QT_IDADE].set_index(COLUNAS_MUN)
+    df_mat_brasil_11a17  = df_sinopse.loc[df_sinopse.NO_MUNICIPIO == 'Brasil',
+                                          COLUNAS_MAT_QT_IDADE]
+    df_mat_sp_11a17      = df_sinopse.loc[df_sinopse.NO_MUNICIPIO == 'São Paulo',
+                                          COLUNAS_MAT_QT_IDADE] 
+    df_mat_sp_11a17_mun  = (df_sinopse.loc[(df_sinopse.NO_UF == 'São Paulo') 
+                                          & df_sinopse.CO_MUNICIPIO.notna()
+                                          , COLUNAS_MUN + COLUNAS_MAT_QT_IDADE]
+                                    .set_index(COLUNAS_MUN))
     
-    df_frequencia = padronizar_fre(frequencia.obter_df(ANO_FREQUENCIA, TRI_FREQUENCIA, colunas=COLUNAS_FREQUENCIA))
+    df_frequencia = padronizar_fre(frequencia.obter_df(ANO_FREQUENCIA,
+                                                       TRI_FREQUENCIA,
+                                                       colunas=COLUNAS_FREQUENCIA))
 
     #print(montar_tabela_brasil_sp())
     #print(montar_tabela_RA())
