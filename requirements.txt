@@ -1,0 +1,6 @@
+pandas
+requests
+urllib3==1.25.0
+pyarrow
+xlsxwriter
+openpyxl
