@@ -8,30 +8,103 @@ import requests
 ###############################################################################
 # Definições globais
 
-RAW_FILES = 'raw-files'
 
 ###############################################################################
 # Paths para as raízes das bases de dados
 
+CENSO_ESCOLAR_PATH = 'censo-escolar'
+RENDIMENTO_ESCOLAR_PATH = 'rendimento-escolar'
 CERT_PATH = 'certificados'
+FEATHER_PATH = 'feathers'
+RAW_FILES_PATH = 'raw-files'
 
 ###############################################################################
 # Endereços para as raízes das bases de dados
 
 CENSO_ESCOLAR_URL = ('https://www.gov.br/inep/pt-br/acesso-a-informacao/dados-'
                      'abertos/microdados/censo-escolar')
+RENDIMENTO_ESCOLAR_URL = ('https://www.gov.br/inep/pt-br/acesso-a-informacao/d'
+                          'ados-abertos/indicadores-educacionais/taxas-de-rend'
+                          'imento-escolar')
 
 ###############################################################################
 # Critérios para encontrar os endereços das bases de dados
 
 CENSO_ESCOLAR_CRITERION = ('[file_url["href"] for file_url in soup.find("div",'
                            ' id="content-core").find_all("a")'
-                           ' if str(year) in file_url["href"]]')
+                           ' if str(self.year) in file_url["href"]]')
+RENDIMENTO_ESCOLAR_CRITERION = ('[a["href"] for a in soup.find("div",'
+                                ' id="parent-fieldname-text").find_all("a")'
+                                ' if self.agg_level in a["href"].lower()]')
 
 ###############################################################################
 # Certificados 
 
 CENSO_ESCOLAR_CERT = 'inep-gov-br-chain.pem'
+RENDIMENTO_ESCOLAR_CERT = 'inep-gov-br-chain.pem'
+
+###############################################################################
+# Anos iniciais e finais para as bases
+
+RENDIMENTO_ESCOLAR_FIRST_YEAR = 2007
+RENDIMENTO_ESCOLAR_LAST_YEAR = 2022
+
+###############################################################################
+# Definições base rendimento escolar
+
+COLUMN_SIZE_REN_BR = 58
+
+COLUMNS_LABELS_REN_BR = {
+    2007: [
+    'NU_ANO_CENSO', 'UNIDGEO', 'NO_CATEGORIA', 'NO_DEPENDENCIA',   
+    
+    'APROVACAO_EF_01', 'APROVACAO_EF_02', 'APROVACAO_EF_03',
+    'APROVACAO_EF_04', 'APROVACAO_EF_05', 'APROVACAO_EF_06',
+    'APROVACAO_EF_07', 'APROVACAO_EF_08', 'APROVACAO_EF_09',
+    'APROVACAO_EF',    'APROVACAO_EF_AI', 'APROVACAO_EF_AF',
+    'APROVACAO_EM_01', 'APROVACAO_EM_02', 'APROVACAO_EM_03',
+    'APROVACAO_EM_04', 'APROVACAO_EM_NS', 'APROVACAO_EM',
+
+    'REPROVACAO_EF_01', 'REPROVACAO_EF_02', 'REPROVACAO_EF_03',
+    'REPROVACAO_EF_04', 'REPROVACAO_EF_05', 'REPROVACAO_EF_06',
+    'REPROVACAO_EF_07', 'REPROVACAO_EF_08', 'REPROVACAO_EF_09',
+    'REPROVACAO_EF',    'REPROVACAO_EF_AI', 'REPROVACAO_EF_AF',
+    'REPROVACAO_EM_01', 'REPROVACAO_EM_02', 'REPROVACAO_EM_03',
+    'REPROVACAO_EM_04', 'REPROVACAO_EM_NS', 'REPROVACAO_EM',
+
+    'ABANDONO_EF_01', 'ABANDONO_EF_02', 'ABANDONO_EF_03',
+    'ABANDONO_EF_04', 'ABANDONO_EF_05', 'ABANDONO_EF_06',
+    'ABANDONO_EF_07', 'ABANDONO_EF_08', 'ABANDONO_EF_09',
+    'ABANDONO_EF',    'ABANDONO_EF_AI', 'ABANDONO_EF_AF',
+    'ABANDONO_EM_01', 'ABANDONO_EM_02', 'ABANDONO_EM_03',
+    'ABANDONO_EM_04', 'ABANDONO_EM_NS', 'ABANDONO_EM', 
+    ],
+
+    2011: [
+    'NU_ANO_CENSO', 'UNIDGEO', 'NO_CATEGORIA', 'NO_DEPENDENCIA',   
+    
+    'APROVACAO_EF',    'APROVACAO_EF_AI', 'APROVACAO_EF_AF',
+    'APROVACAO_EF_01', 'APROVACAO_EF_02', 'APROVACAO_EF_03',
+    'APROVACAO_EF_04', 'APROVACAO_EF_05', 'APROVACAO_EF_06',
+    'APROVACAO_EF_07', 'APROVACAO_EF_08', 'APROVACAO_EF_09',
+    'APROVACAO_EM',    'APROVACAO_EM_01', 'APROVACAO_EM_02',
+    'APROVACAO_EM_03', 'APROVACAO_EM_04', 'APROVACAO_EM_NS',
+
+    'REPROVACAO_EF',    'REPROVACAO_EF_AI', 'REPROVACAO_EF_AF',
+    'REPROVACAO_EF_01', 'REPROVACAO_EF_02', 'REPROVACAO_EF_03',
+    'REPROVACAO_EF_04', 'REPROVACAO_EF_05', 'REPROVACAO_EF_06',
+    'REPROVACAO_EF_07', 'REPROVACAO_EF_08', 'REPROVACAO_EF_09',
+    'REPROVACAO_EM',    'REPROVACAO_EM_01', 'REPROVACAO_EM_02',
+    'REPROVACAO_EM_03', 'REPROVACAO_EM_04', 'REPROVACAO_EM_NS',
+
+    'ABANDONO_EF',    'ABANDONO_EF_AI', 'ABANDONO_EF_AF',
+    'ABANDONO_EF_01', 'ABANDONO_EF_02', 'ABANDONO_EF_03',
+    'ABANDONO_EF_04', 'ABANDONO_EF_05', 'ABANDONO_EF_06',
+    'ABANDONO_EF_07', 'ABANDONO_EF_08', 'ABANDONO_EF_09',
+    'ABANDONO_EM',    'ABANDONO_EM_01', 'ABANDONO_EM_02',
+    'ABANDONO_EM_03', 'ABANDONO_EM_04', 'ABANDONO_EM_NS',
+    ],
+}
 
 def obter_dtype(series, df):
     if pd.notna(series.Categoria):
@@ -78,8 +151,9 @@ class handleDatabase:
         if not os.path.isdir(self.root):
             os.mkdir(self.root)
         self.is_zipped = False
-        self.otimized = False
-        self.stardardized = False
+        self.is_preprocessed = False
+        self.is_otimized = False
+        self.is_stardardized = False
 
     def get_database(self, medium, url, cert=True):
         r = medium.get(url, verify=cert)
@@ -101,11 +175,11 @@ class handleDatabase:
             )
             return self.file_url
         print_info('Obtendo endereço para extração da Base de dados.',
-                   *self.basic_names())
+                   *self.basic_names(),
+                   f'Endereço da busca = {self.url}')
         r = self.medium.get(self.url)
         soup = BeautifulSoup(r.text, 'html.parser')
-        year = self.year
-        file_urls = eval(criterion)
+        file_urls = eval(criterion, {'self': self}, {'soup': soup})
         self.assert_url(file_urls)
         self.file_url = file_urls[0]
         print_info(f'Endereço {self.file_url} obtido com sucesso!')
@@ -142,6 +216,14 @@ class handleDatabase:
         func()
         print_info('Descompressão concluída!')
 
+    def preprocess_df(self):
+        pass
+
+    def wraper_preprocess(self, func):
+        print_info('Preprocessamendo dataframe...')
+        func()
+        print_info('Preprocessamento concluído!')
+
     def otimize_df(self):
         pass
     
@@ -163,7 +245,7 @@ class handleDatabase:
             columns = []
         match type_:
             case 'feather':
-                self.feather_path = os.path.join(self.path, 'feathers')
+                self.feather_path = os.path.join(self.path, FEATHER_PATH)
                 if not os.path.isdir(self.feather_path):
                     os.mkdir(self.feather_path)
                 self.feather_path = os.path.join(self.feather_path,
@@ -179,9 +261,11 @@ class handleDatabase:
             self.get_save_raw_database()
         if not hasattr(self, 'df') and self.is_zipped:
             self.wraper_unzip(self.unzip)
-        if not self.otimized:
+        if not self.is_preprocessed:
+            self.wraper_preprocess(self.preprocess_df)
+        if not self.is_otimized:
             self.wraper_otimize_df(self.otimize_df)
-        if not self.stardardized:
+        if not self.is_stardardized:
             self.wraper_standard_df(self.standard_df)
         self.save(type_)   
         return self.df
@@ -203,10 +287,10 @@ class handleCensoEscolar(handleDatabase):
     def __init__(self, medium, year):
         super().__init__(medium, year)
         self.name = 'Censo Escolar'
-        self.path = os.path.join(self.root, 'censo-escolar')
+        self.path = os.path.join(self.root, CENSO_ESCOLAR_PATH)
         if not os.path.isdir(self.path):
             os.mkdir(self.path)
-        self.raw_files_path = os.path.join(self.path, RAW_FILES)
+        self.raw_files_path = os.path.join(self.path, RAW_FILES_PATH)
         if not os.path.isdir(self.raw_files_path):
             os.mkdir(self.raw_files_path)
         self.url = CENSO_ESCOLAR_URL
@@ -242,13 +326,13 @@ class handleCensoEscolar(handleDatabase):
                     if not correct_file:
                         break
                 if correct_file:
+                    print_info(f'Convertendo em df o arquivo {filename}')
                     with zf.open(filename) as f:
-                        df = pd.read_csv(f,
+                        self.df = pd.read_csv(f,
                                          sep=';',
                                          decimal='.',
                                          encoding='windows-1252',
                                          low_memory=False)
-                        self.df = df
                         return self.df
                     
     def make_database_dict(self):
@@ -257,7 +341,7 @@ class handleCensoEscolar(handleDatabase):
                 if 'xlsx' in fn and 'dicion' in fn and '~' not in fn:
                     df_dict_tmp = pd.read_excel(zf.open(fn), header=None)
         df_dict_tmp = (df_dict_tmp[df_dict_tmp[0].notna() &
-                                  (df_dict_tmp.iloc[:, self.year % 2000 - 1] != 'n')]
+                            (df_dict_tmp.iloc[:, self.year % 2000 - 1] != 'n')]
                              .reset_index(drop=True))
         df_dict = df_dict_tmp[df_dict_tmp[0].astype(str).str.isdecimal()]
         header_index = df_dict.index[0] - 1
@@ -267,7 +351,7 @@ class handleCensoEscolar(handleDatabase):
 
         dtype_dict = {nome: dtype for nome, dtype
                                   in df_dict[['Nome da Variável', 'dtype']]
-                                             .itertuples(index=False, name=None)
+                                            .itertuples(index=False, name=None)
                                   if dtype != 'datetime'}
 
         self.database_dict = dtype_dict
@@ -294,11 +378,148 @@ class handleCensoEscolar(handleDatabase):
         for col in self.df.select_dtypes('O').columns:
            self.df[col] = pd.to_datetime(self.df[col], format=format_)
 
-        self.otimize_df = True
+        self.is_otimized = True
         return self.df
 
 
+class handleRendimentoEscolar(handleDatabase):
+    def __init__(self, medium, year, agg_level):
+        if (year < RENDIMENTO_ESCOLAR_FIRST_YEAR
+            or year > RENDIMENTO_ESCOLAR_LAST_YEAR):
+            print_error(f'Não há dados disponíveis para o ano {year}')
+            raise ValueError
+        super().__init__(medium, year)
+        self.name = 'Rendimento Escolar'
+        self.path = os.path.join(self.root, RENDIMENTO_ESCOLAR_PATH)
+        if not os.path.isdir(self.path):
+            os.mkdir(self.path)
+        self.raw_files_path = os.path.join(self.path, RAW_FILES_PATH)
+        if not os.path.isdir(self.raw_files_path):
+            os.mkdir(self.raw_files_path)
+        self.url = f'{RENDIMENTO_ESCOLAR_URL}/{year}'
+        self.is_zipped = True
+        self.agg_level = agg_level
+
+    def get_url(self):
+        criterion = RENDIMENTO_ESCOLAR_CRITERION
+        file_url = super().get_url(criterion)
+        self.file_url
+        return self.file_url
+
+    def get_save_raw_database(self):
+        cert = os.path.join('.', CERT_PATH, RENDIMENTO_ESCOLAR_CERT)
+        if not os.path.isfile(cert):
+            cert = False
+        self.get_url()
+        super().get_save_raw_database(cert)
+
+    def unzip(self):
+        if not hasattr(self, 'filepath'):
+            self.get_save_raw_database()
+        self.dfs = []
+        with zipfile.ZipFile(self.filepath, 'r') as zf:
+            for filepath in zf.namelist():
+                filename = os.path.split(filepath)[-1]
+                if ('xls' in filename.lower() 
+                     and not filename.startswith('~')):
+                    print_info(f'Convertendo em df o arquivo {filename}')
+                    with zf.open(filepath) as f:
+                        df = pd.read_excel(f, header=None, na_values='--')
+                        self.dfs.append(df)
+        return self.dfs
+
+    def preprocess(self):
+        match self.agg_level:
+            case 'brasil':
+                self.preprocess_br()
+            case 'regiao':
+                self.preprocess_rg()
+            case 'municipio':
+                self.preprocess_mun()
+
+    def preprocess_br(self):
+        if not hasattr(self, 'dfs'):
+            self.unzip()
+        dfs = []
+        for df in self.dfs:
+            for i_start, e in enumerate(df.iloc[:, 0]):
+                if pd.isnull(e) or pd.isna(e):
+                    continue
+                if str(self.year) == str(e).strip():
+                    break
+            for i_end, e in enumerate(df.iloc[::-1, 0]):
+                if pd.isnull(e) or pd.isna(e):
+                    continue
+                if str(self.year) == str(e).strip():
+                    i_end = None if i_end == 0 else -i_end
+                    break
+            
+            flag0 = False
+            flag1 = False
+            for e in df.iloc[:i_start, 1]:
+                if pd.isnull(e) or pd.isna(e):
+                    continue
+                if str(e).strip().lower() == 'região':
+                    flag0 = True
+            for e in df.iloc[:i_start, 2]:
+                if pd.isnull(e) or pd.isna(e):
+                    continue
+                if str(e).strip().lower() == 'uf':
+                    flag1 = True
+
+            if flag0 and flag1:
+                df.drop(columns=1, inplace=True)
+                df.columns = range(COLUMN_SIZE_REN_BR)
+            assert len(df.columns) == COLUMN_SIZE_REN_BR, len(df.columns)
+
+            dfs.append(df.iloc[i_start:i_end].copy())
+        df = pd.concat(dfs, ignore_index=True)
+        if self.year < 2011:
+            columns = COLUMNS_LABELS_REN_BR[2007]
+        elif self.year < 2023:
+            columns = COLUMNS_LABELS_REN_BR[2011]
+        else:
+            raise ValueError
+        df.columns = columns 
+        
+        self.df = df
+        return self.df
+
+    def preprocess_rg(self):
+        assert False, 'TODO: preprocess_rg'
+
+    def preprocess_mun(self):
+        assert False, 'TODO: preprocess_mun'
+
+    def otimize_df(self):
+        self.make_database_dict()
+        for col, dtype in self.database_dict.items():
+            try:
+                self.df[col] = self.df[col].astype(dtype)
+            except TypeError:
+                print_error(f"TypeError: {col}")
+                self.df[col] = self.df[col].astype('string')
+            except ValueError:
+                print_error(f"ValueError: {col}")
+                self.df[col] = self.df[col].astype('string')
+
+        match self.year:
+            case 2022:
+                format_ = '%d%b%Y:%X'
+            case 2023:
+                format_ = '%d%b%y:%X'
+
+        for col in self.df.select_dtypes('O').columns:
+           self.df[col] = pd.to_datetime(self.df[col], format=format_)
+
+        self.otimize_df = True
+        return self.df
+
+import time
 with requests.Session() as s:
-    for year in range(2022, 2023):
-        censo_escolar = handleCensoEscolar(s, year)
-        censo_escolar.get_df('feather')
+    for year in range(2007, 2023):
+        rendimento_escolar = handleRendimentoEscolar(s, year, 'brasil')
+        df = rendimento_escolar.preprocess()
+        print(df.head(2))
+        print(df.tail(2))
+        print('--------------------------------\n')
