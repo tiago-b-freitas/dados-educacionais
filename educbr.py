@@ -8,6 +8,81 @@ import requests
 ###############################################################################
 # Definições globais
 
+UF_SIGLA_NOME = {
+    'RO': 'Rondônia',
+    'AC': 'Acre',
+    'AM': 'Amazonas',
+    'RR': 'Roraima',
+    'PA': 'Pará',
+    'AP': 'Amapá',
+    'TO': 'Tocantins',
+    'MA': 'Maranhão',
+    'PI': 'Piauí',
+    'CE': 'Ceará',
+    'RN': 'Rio Grande do Norte',
+    'PB': 'Paraíba',
+    'PE': 'Pernambuco',
+    'AL': 'Alagoas',
+    'SE': 'Sergipe',
+    'BA': 'Bahia',
+    'MG': 'Minas Gerais',
+    'ES': 'Espírito Santo',
+    'RJ': 'Rio de Janeiro',
+    'SP': 'São Paulo',
+    'PR': 'Paraná',
+    'SC': 'Santa Catarina',
+    'RS': 'Rio Grande do Sul',
+    'MS': 'Mato Grosso do Sul',
+    'MT': 'Mato Grosso',
+    'GO': 'Goiás',
+    'DF': 'Distrito Federal',
+}
+
+UF_NOME_SIGLA = {value: key for key, value in UF_SIGLA_NOME.items()}
+
+UF_COD_NOME = {
+    11:	'Rondônia',
+    12:	'Acre',
+    13:	'Amazonas',
+    14:	'Roraima',
+    15:	'Pará',
+    16:	'Amapá',
+    17:	'Tocantins',
+    21:	'Maranhão',
+    22:	'Piauí',
+    23:	'Ceará',
+    24:	'Rio Grande do Norte',
+    25:	'Paraíba',
+    26:	'Pernambuco',
+    27:	'Alagoas',
+    28:	'Sergipe',
+    29:	'Bahia',
+    31:	'Minas Gerais',
+    32:	'Espírito Santo',
+    33:	'Rio de Janeiro',
+    35:	'São Paulo',
+    41:	'Paraná',
+    42:	'Santa Catarina',
+    43:	'Rio Grande do Sul',
+    50:	'Mato Grosso do Sul',
+    51:	'Mato Grosso',
+    52:	'Goiás',
+    53:	'Distrito Federal',
+}
+
+UF_NOME_COD = {value: key for key, value in UF_COD_NOME.items()}
+
+MAP_BRASIL_REGIOES_UFS = {key: 'ufs' for key in UF_NOME_COD.keys()}
+MAP_BRASIL_REGIOES_UFS.update({
+    'Norte': 'regioes',
+    'Nordeste': 'regioes',
+    'Sudeste': 'regioes',
+    'Sul': 'regioes',
+    'Centro_Oeste': 'regioes',
+    'Centro - Oeste': 'regioes',
+    'Centro-Oeste': 'regioes',
+})
+MAP_BRASIL_REGIOES_UFS.update({'Brasil': 'brasil'})
 
 ###############################################################################
 # Paths para as raízes das bases de dados
@@ -52,6 +127,18 @@ RENDIMENTO_ESCOLAR_LAST_YEAR = 2022
 ###############################################################################
 # Definições base rendimento escolar
 
+AGG_LEVEL_REN = (
+    'brasil',
+    'regioes',
+    'ufs',
+    'municipios',
+    'escolas',
+)
+
+REN_REGIOES = {
+    'Centro - Oeste': 'Centro-Oeste',
+    'Centro_Oeste': 'Centro-Oeste',
+}
 COLUMN_SIZE_REN_BR = 58
 
 COLUMNS_LABELS_REN_BR = {
@@ -106,7 +193,8 @@ COLUMNS_LABELS_REN_BR = {
     ],
 }
 
-def obter_dtype(series, df):
+
+def get_dtype(series, df):
     if pd.notna(series.Categoria):
         return 'category'
     elif series.Tipo == 'Char':
@@ -200,10 +288,14 @@ class handleDatabase:
         print_info('Arquivo gravado com sucesso!')
 
     def assert_url(self, file_urls):
-        assert len(file_urls) == 1, print_error(
-             'Mais de um link para extração da base de dados.', 
-            f'File_urls={file_urls}'
-        )
+        if len(file_urls) == 0:
+            print_error('Não foi encontrado nenhum endereço.')
+        elif len(file_urls) > 1:
+            print_error('Mais de um link para extração da base de dados.')
+        else:
+            return
+        print_error(f'File_urls={file_urls}')
+        raise ValueError
 
     def basic_names(self):
         return [f'Base de dados = "{self.name}"', f'Ano = "{self.year}"']
@@ -219,7 +311,7 @@ class handleDatabase:
     def preprocess_df(self):
         pass
 
-    def wraper_preprocess(self, func):
+    def wraper_preprocess_df(self, func):
         print_info('Preprocessamendo dataframe...')
         func()
         print_info('Preprocessamento concluído!')
@@ -240,16 +332,19 @@ class handleDatabase:
         func()
         print_info('Padronização conluída!')
 
-    def get_df(self, type_, columns=None):
+    def get_df(self, filetype, columns=None):
         if columns is None:
             columns = []
-        match type_:
+        if filetype not in ('feather'):
+            raise ValueError
+
+        match filetype:
             case 'feather':
                 self.feather_path = os.path.join(self.path, FEATHER_PATH)
                 if not os.path.isdir(self.feather_path):
                     os.mkdir(self.feather_path)
                 self.feather_path = os.path.join(self.feather_path,
-                                            f'{self.year}-{self.name}.feather')
+                                            f'{self.filename}.feather')
                 if os.path.isfile(self.feather_path):
                     print_info(f'Arquivo {self.feather_path} já existente')
                     self.df = pd.read_feather(self.feather_path,
@@ -262,18 +357,18 @@ class handleDatabase:
         if not hasattr(self, 'df') and self.is_zipped:
             self.wraper_unzip(self.unzip)
         if not self.is_preprocessed:
-            self.wraper_preprocess(self.preprocess_df)
+            self.wraper_preprocess_df(self.preprocess_df)
         if not self.is_otimized:
             self.wraper_otimize_df(self.otimize_df)
         if not self.is_stardardized:
             self.wraper_standard_df(self.standard_df)
-        self.save(type_)   
+        self.save(filetype)   
         return self.df
                 
-    def save(self, type_):
+    def save(self, filetype):
         success = False
-        print_info(f'Salvando no formato {type_}...')
-        match type_:
+        print_info(f'Salvando no formato {filetype}...')
+        match filetype:
             case 'feather':
                 self.df.to_feather(self.feather_path)
                 success = True
@@ -287,6 +382,7 @@ class handleCensoEscolar(handleDatabase):
     def __init__(self, medium, year):
         super().__init__(medium, year)
         self.name = 'Censo Escolar'
+        self.filename = 'censo escolar'
         self.path = os.path.join(self.root, CENSO_ESCOLAR_PATH)
         if not os.path.isdir(self.path):
             os.mkdir(self.path)
@@ -347,7 +443,7 @@ class handleCensoEscolar(handleDatabase):
         header_index = df_dict.index[0] - 1
         df_dict = df_dict.set_axis(df_dict_tmp.iloc[header_index, :], axis=1)
         
-        df_dict['dtype'] = df_dict.apply(obter_dtype, axis=1, df=self.df)
+        df_dict['dtype'] = df_dict.apply(get_dtype, axis=1, df=self.df)
 
         dtype_dict = {nome: dtype for nome, dtype
                                   in df_dict[['Nome da Variável', 'dtype']]
@@ -388,17 +484,24 @@ class handleRendimentoEscolar(handleDatabase):
             or year > RENDIMENTO_ESCOLAR_LAST_YEAR):
             print_error(f'Não há dados disponíveis para o ano {year}')
             raise ValueError
+        if agg_level not in AGG_LEVEL_REN:
+            print_error('As opções de nível de agregação são:'
+                       f'{AGG_LEVEL_REN}')
+            raise ValueError
+
         super().__init__(medium, year)
+        self.agg_level = agg_level
         self.name = 'Rendimento Escolar'
-        self.path = os.path.join(self.root, RENDIMENTO_ESCOLAR_PATH)
+        self.path = os.path.join(self.root, RENDIMENTO_ESCOLAR_PATH, self.agg_level)
         if not os.path.isdir(self.path):
             os.mkdir(self.path)
-        self.raw_files_path = os.path.join(self.path, RAW_FILES_PATH)
+        self.raw_files_path = os.path.join(os.path.split(self.path)[0],
+                                           RAW_FILES_PATH)
         if not os.path.isdir(self.raw_files_path):
             os.mkdir(self.raw_files_path)
         self.url = f'{RENDIMENTO_ESCOLAR_URL}/{year}'
         self.is_zipped = True
-        self.agg_level = agg_level
+        self.filename = f'{self.year}-{self.agg_level}-rendimento-escolar'
 
     def get_url(self):
         criterion = RENDIMENTO_ESCOLAR_CRITERION
@@ -424,22 +527,26 @@ class handleRendimentoEscolar(handleDatabase):
                      and not filename.startswith('~')):
                     print_info(f'Convertendo em df o arquivo {filename}')
                     with zf.open(filepath) as f:
-                        df = pd.read_excel(f, header=None, na_values='--')
-                        self.dfs.append(df)
+                        df_sheet_dict = pd.read_excel(f, header=None,
+                                                      na_values='--',
+                                                      sheet_name=None)
+                        for df in df_sheet_dict.values():
+                            self.dfs.append(df)
         return self.dfs
 
-    def preprocess(self):
-        match self.agg_level:
-            case 'brasil':
-                self.preprocess_br()
-            case 'regiao':
-                self.preprocess_rg()
-            case 'municipio':
-                self.preprocess_mun()
-
-    def preprocess_br(self):
+    def preprocess_df(self):
         if not hasattr(self, 'dfs'):
             self.unzip()
+        match self.agg_level:
+            case 'brasil' | 'regioes' | 'ufs':
+                df = self.preprocess_br()
+            case 'municipio':
+                df = self.preprocess_mun()
+            case 'escola':
+                df = self.preprocess_esc()
+        return df
+
+    def preprocess_br(self):
         dfs = []
         for df in self.dfs:
             for i_start, e in enumerate(df.iloc[:, 0]):
@@ -483,43 +590,58 @@ class handleRendimentoEscolar(handleDatabase):
         df.columns = columns 
         
         self.df = df
-        return self.df
 
-    def preprocess_rg(self):
-        assert False, 'TODO: preprocess_rg'
+        self.df.UNIDGEO = (self.df.UNIDGEO.str.strip()
+                                          .str.title()
+                                          .str.replace(' Do ', ' do ')
+                                          .str.replace(' De ', ' de '))
+        self.df.UNIDGEO = self.df.UNIDGEO.map(
+                lambda e: UF_SIGLA_NOME.get(e.upper(), e)) 
+
+        mapping = self.df.UNIDGEO.map(MAP_BRASIL_REGIOES_UFS)
+
+        if any(mapping.isna()):
+            self.df['tmp'] = mapping
+            print_error('O mapeamento não foi completo',
+                        self.df.UNIDGEO.unique(),
+                        self.df[self.df.tmp.isna()])
+            raise ValueError
+
+        filter_ = mapping == self.agg_level
+        self.df = self.df[filter_].reset_index(drop=True)
+        return self.df
 
     def preprocess_mun(self):
         assert False, 'TODO: preprocess_mun'
 
+    def preprocess_esc(self):
+        assert False, 'TODO: preprocess_esc'
+
     def otimize_df(self):
-        self.make_database_dict()
-        for col, dtype in self.database_dict.items():
-            try:
-                self.df[col] = self.df[col].astype(dtype)
-            except TypeError:
-                print_error(f"TypeError: {col}")
-                self.df[col] = self.df[col].astype('string')
-            except ValueError:
-                print_error(f"ValueError: {col}")
-                self.df[col] = self.df[col].astype('string')
+        if not hasattr(self, 'df'):
+            self.preprocess_df()
 
-        match self.year:
-            case 2022:
-                format_ = '%d%b%Y:%X'
-            case 2023:
-                format_ = '%d%b%y:%X'
+        self.df['NU_ANO_CENSO'] = pd.to_numeric(self.df['NU_ANO_CENSO'],
+                                                downcast='unsigned')
+        for col in ('UNIDGEO', 'NO_CATEGORIA', 'NO_DEPENDENCIA'):
+            self.df[col] = self.df[col].astype('category')
 
-        for col in self.df.select_dtypes('O').columns:
-           self.df[col] = pd.to_datetime(self.df[col], format=format_)
-
-        self.otimize_df = True
+        for col in self.df.columns[self.df.columns.str.match('^APR|REP|ABA\w+')]:
+            self.df[col] = self.df[col].astype('Float32')
+        
         return self.df
+
+    def basic_names(self):
+        return [f'Base de dados = "{self.name}"',
+                f'Ano = "{self.year}"',
+                f'Agg_level = "{self.agg_level}"']
 
 import time
 with requests.Session() as s:
-    for year in range(2007, 2023):
-        rendimento_escolar = handleRendimentoEscolar(s, year, 'brasil')
-        df = rendimento_escolar.preprocess()
-        print(df.head(2))
-        print(df.tail(2))
-        print('--------------------------------\n')
+    for year in range(2022, 2023):
+        for agg_level in ('municipios', ):
+            rendimento_escolar = handleRendimentoEscolar(s, year, agg_level)
+            df = rendimento_escolar.get_df('feather')
+            print(df.head(2))
+            print('--------------------------------\n')
+            #time.sleep(1)
