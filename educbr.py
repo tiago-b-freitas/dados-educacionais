@@ -537,16 +537,6 @@ class handleRendimentoEscolar(handleDatabase):
     def preprocess_df(self):
         if not hasattr(self, 'dfs'):
             self.unzip()
-        match self.agg_level:
-            case 'brasil' | 'regioes' | 'ufs':
-                df = self.preprocess_br()
-            case 'municipio':
-                df = self.preprocess_mun()
-            case 'escola':
-                df = self.preprocess_esc()
-        return df
-
-    def preprocess_br(self):
         dfs = []
         for df in self.dfs:
             for i_start, e in enumerate(df.iloc[:, 0]):
@@ -561,36 +551,57 @@ class handleRendimentoEscolar(handleDatabase):
                     i_end = None if i_end == 0 else -i_end
                     break
             
-            flag0 = False
-            flag1 = False
-            for e in df.iloc[:i_start, 1]:
-                if pd.isnull(e) or pd.isna(e):
-                    continue
-                if str(e).strip().lower() == 'região':
-                    flag0 = True
-            for e in df.iloc[:i_start, 2]:
-                if pd.isnull(e) or pd.isna(e):
-                    continue
-                if str(e).strip().lower() == 'uf':
-                    flag1 = True
+            match self.agg_level:
+                case 'brasil' | 'regioes' | 'ufs':
+                    flag0 = False
+                    flag1 = False
+                    for e in df.iloc[:i_start, 1]:
+                        if pd.isnull(e) or pd.isna(e):
+                            continue
+                        if str(e).strip().lower() == 'região':
+                            flag0 = True
+                    for e in df.iloc[:i_start, 2]:
+                        if pd.isnull(e) or pd.isna(e):
+                            continue
+                        if str(e).strip().lower() == 'uf':
+                            flag1 = True
 
-            if flag0 and flag1:
-                df.drop(columns=1, inplace=True)
-                df.columns = range(COLUMN_SIZE_REN_BR)
-            assert len(df.columns) == COLUMN_SIZE_REN_BR, len(df.columns)
+                    if flag0 and flag1:
+                        df.drop(columns=1, inplace=True)
+                        df.columns = range(COLUMN_SIZE_REN_BR)
+                    assert len(df.columns) == COLUMN_SIZE_REN_BR, \
+                             len(df.columns)
+                
+                case 'municipios':
+                    df.drop(columns=[1, 2, 4], inplace=True)
 
-            dfs.append(df.iloc[i_start:i_end].copy())
+                case 'escolas':
+                    df.drop(columns=[1, 2, 3, 4, 6], inplace=True)
+
+            dfs.append(df.iloc[i_start:i_end].reset_index(drop=True))
+
         df = pd.concat(dfs, ignore_index=True)
+
         if self.year < 2011:
-            columns = COLUMNS_LABELS_REN_BR[2007]
+            columns = COLUMNS_LABELS_REN[2007]
         elif self.year < 2023:
-            columns = COLUMNS_LABELS_REN_BR[2011]
+            columns = COLUMNS_LABELS_REN[2011]
         else:
             raise ValueError
         df.columns = columns 
         
-        self.df = df
+        self.df = df[COLUMNS_LABELS_REN[2011]]
 
+        match self.agg_level:
+            case 'brasil' | 'regioes' | 'ufs':
+                self.df = self.preprocess_br()
+            case 'municipios':
+                self.df = self.preprocess_mun()
+            case 'escolas':
+                self.df = self.preprocess_esc()
+        return self.df
+
+    def preprocess_br(self):
         self.df.UNIDGEO = (self.df.UNIDGEO.str.strip()
                                           .str.title()
                                           .str.replace(' Do ', ' do ')
@@ -612,7 +623,7 @@ class handleRendimentoEscolar(handleDatabase):
         return self.df
 
     def preprocess_mun(self):
-        assert False, 'TODO: preprocess_mun'
+        pass
 
     def preprocess_esc(self):
         assert False, 'TODO: preprocess_esc'
@@ -623,8 +634,10 @@ class handleRendimentoEscolar(handleDatabase):
 
         self.df['NU_ANO_CENSO'] = pd.to_numeric(self.df['NU_ANO_CENSO'],
                                                 downcast='unsigned')
-        for col in ('UNIDGEO', 'NO_CATEGORIA', 'NO_DEPENDENCIA'):
+        for col in ('NO_CATEGORIA', 'NO_DEPENDENCIA'):
             self.df[col] = self.df[col].astype('category')
+
+        self.df.UNIDGEO = self.df.UNIDGEO.astype('string')
 
         for col in self.df.columns[self.df.columns.str.match('^APR|REP|ABA\w+')]:
             self.df[col] = self.df[col].astype('Float32')
@@ -638,10 +651,10 @@ class handleRendimentoEscolar(handleDatabase):
 
 import time
 with requests.Session() as s:
-    for year in range(2022, 2023):
-        for agg_level in ('municipios', ):
+    for year in (2022,):
+        for agg_level in ('escolas', ):
             rendimento_escolar = handleRendimentoEscolar(s, year, agg_level)
-            df = rendimento_escolar.get_df('feather')
+            df = rendimento_escolar.unzip()
             print(df.head(2))
             print('--------------------------------\n')
             #time.sleep(1)
