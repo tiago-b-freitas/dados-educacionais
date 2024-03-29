@@ -1,4 +1,6 @@
+import collections
 import os
+import re
 import zipfile
 
 from bs4 import BeautifulSoup
@@ -89,8 +91,12 @@ MAP_BRASIL_REGIOES_UFS.update({'Brasil': 'brasil'})
 
 CENSO_ESCOLAR_PATH = 'censo-escolar'
 RENDIMENTO_ESCOLAR_PATH = 'rendimento-escolar'
+PNADC_PATH = 'pnadc'
 CERT_PATH = 'certificados'
-FEATHER_PATH = 'feathers'
+FILETYPES_PATH = {
+    'feather': 'feathers',
+    'parquet': 'parquets',
+}
 RAW_FILES_PATH = 'raw-files'
 
 ###############################################################################
@@ -101,6 +107,8 @@ CENSO_ESCOLAR_URL = ('https://www.gov.br/inep/pt-br/acesso-a-informacao/dados-'
 RENDIMENTO_ESCOLAR_URL = ('https://www.gov.br/inep/pt-br/acesso-a-informacao/d'
                           'ados-abertos/indicadores-educacionais/taxas-de-rend'
                           'imento-escolar')
+PNADC_URL = ('http://ftp.ibge.gov.br/Trabalho_e_Rendimento/Pesquisa_Nacional_p'
+             'or_Amostra_de_Domicilios_continua/Trimestral/Microdados')
 
 ###############################################################################
 # Critérios para encontrar os endereços das bases de dados
@@ -111,6 +119,8 @@ CENSO_ESCOLAR_CRITERION = ('[file_url["href"] for file_url in soup.find("div",'
 RENDIMENTO_ESCOLAR_CRITERION = ('[a["href"] for a in soup.find("div",'
                                 ' id="parent-fieldname-text").find_all("a")'
                                 ' if self.agg_level in a["href"].lower()]')
+PNADC_CRITERION = ('[self.url+"/"+a["href"] for a in soup.find_all("a")'
+                   'if str(self.trimester).zfill(2)+str(self.year) in a["href"]]')
 
 ###############################################################################
 # Certificados 
@@ -123,6 +133,10 @@ RENDIMENTO_ESCOLAR_CERT = 'inep-gov-br-chain.pem'
 
 RENDIMENTO_ESCOLAR_FIRST_YEAR = 2007
 RENDIMENTO_ESCOLAR_LAST_YEAR = 2022
+PNADC_FIRST_YEAR = 2012
+PNADC_LAST_YEAR = 2023
+PNADC_FIRST_TRIMESTER = 1 
+PNADC_LAST_TRIMESTER = 4
 
 ###############################################################################
 # Definições base rendimento escolar
@@ -132,16 +146,16 @@ AGG_LEVEL_REN = (
     'regioes',
     'ufs',
     'municipios',
-    'escolas',
+    'escola',
 )
 
 REN_REGIOES = {
     'Centro - Oeste': 'Centro-Oeste',
     'Centro_Oeste': 'Centro-Oeste',
 }
-COLUMN_SIZE_REN_BR = 58
+COLUMN_SIZE_REN = 58
 
-COLUMNS_LABELS_REN_BR = {
+COLUMNS_LABELS_REN = {
     2007: [
     'NU_ANO_CENSO', 'UNIDGEO', 'NO_CATEGORIA', 'NO_DEPENDENCIA',   
     
@@ -242,6 +256,7 @@ class handleDatabase:
         self.is_preprocessed = False
         self.is_otimized = False
         self.is_stardardized = False
+        self.SUPPORTED_FTs = ('feather', 'parquet')
 
     def get_database(self, medium, url, cert=True):
         r = medium.get(url, verify=cert)
@@ -274,6 +289,8 @@ class handleDatabase:
         return self.file_url
 
     def get_save_raw_database(self, cert=True):
+        if not hasattr(self, 'file_url'):
+            self.get_url()
         filename = os.path.split(self.file_url)[-1]
         self.filepath = os.path.join(self.raw_files_path, filename)
         if os.path.isfile(self.filepath):
@@ -332,25 +349,24 @@ class handleDatabase:
         func()
         print_info('Padronização conluída!')
 
-    def get_df(self, filetype, columns=None):
-        if columns is None:
-            columns = []
-        if filetype not in ('feather'):
+    def get_df(self, filetype, **kwargs):
+        if filetype not in self.SUPPORTED_FTs:
             raise ValueError
 
-        match filetype:
-            case 'feather':
-                self.feather_path = os.path.join(self.path, FEATHER_PATH)
-                if not os.path.isdir(self.feather_path):
-                    os.mkdir(self.feather_path)
-                self.feather_path = os.path.join(self.feather_path,
-                                            f'{self.filename}.feather')
-                if os.path.isfile(self.feather_path):
-                    print_info(f'Arquivo {self.feather_path} já existente')
-                    self.df = pd.read_feather(self.feather_path,
-                                              columns=columns)
-                    
-                    return self.df
+        self.dir_path = os.path.join(self.path, FILETYPES_PATH[filetype])
+
+        if not os.path.isdir(self.dir_path):
+            os.mkdir(self.dir_path)
+            
+        self.dest_filepath = os.path.join(self.dir_path,
+                                          f'{self.filename}.{filetype}')
+        if os.path.isfile(self.dest_filepath):
+            print_info(f'Arquivo {self.dest_filepath} já existente')
+            read_fun = getattr(pd, f'read_{filetype}')
+            self.df = read_fun(self.dest_filepath,
+                               **kwargs)
+
+            return self.df
 
         if not hasattr(self, 'filepath'):
             self.get_save_raw_database()
@@ -362,20 +378,16 @@ class handleDatabase:
             self.wraper_otimize_df(self.otimize_df)
         if not self.is_stardardized:
             self.wraper_standard_df(self.standard_df)
+
         self.save(filetype)   
         return self.df
                 
     def save(self, filetype):
         success = False
         print_info(f'Salvando no formato {filetype}...')
-        match filetype:
-            case 'feather':
-                self.df.to_feather(self.feather_path)
-                success = True
-        if success:
-            print_info('Arquivo salvo com sucesso!')
-        else:
-            print_error('O arquivo não foi salvo por algum erro')
+        save_fun = getattr(self.df, f'to_{filetype}')
+        save_fun(self.dest_filepath)
+        print_info('Arquivo salvo com sucesso!')
 
 
 class handleCensoEscolar(handleDatabase):
@@ -568,19 +580,61 @@ class handleRendimentoEscolar(handleDatabase):
 
                     if flag0 and flag1:
                         df.drop(columns=1, inplace=True)
-                        df.columns = range(COLUMN_SIZE_REN_BR)
-                    assert len(df.columns) == COLUMN_SIZE_REN_BR, \
+                        df.columns = range(COLUMN_SIZE_REN)
+                    assert len(df.columns) == COLUMN_SIZE_REN, \
                              len(df.columns)
                 
                 case 'municipios':
                     df.drop(columns=[1, 2, 4], inplace=True)
 
-                case 'escolas':
-                    df.drop(columns=[1, 2, 3, 4, 6], inplace=True)
-
             dfs.append(df.iloc[i_start:i_end].reset_index(drop=True))
 
         df = pd.concat(dfs, ignore_index=True)
+
+        if self.agg_level == 'escola':
+            filename_esc = os.path.join(self.path,
+                                        'escolas-todas.pickle')
+            if not os.path.isfile(filename_esc):
+                assert self.year == 2007, \
+                 'O ano deve ser 2007, para iniciar a base das escolas'
+
+                df_esc = pd.DataFrame({
+                    'ANO_INCLUSÃO': self.year,
+                    'CO_ESCOLA': df.iloc[:, 5],
+                    'NO_ESCOLA': df.iloc[:, 6],
+                    'CO_MUNICIPIO': df.iloc[:, 3],
+                    'NO_CATEGORIA': df.iloc[:, 7],
+                    'NO_DEPENDENCIA': df.iloc[:, 8],
+                    'DUPLICADO': False
+                })
+
+                df_esc.to_pickle(filename_esc)
+
+            else:
+                df_esc = pd.read_pickle(filename_esc)
+                df_esc = pd.concat([df_esc, pd.DataFrame({
+                    'ANO_INCLUSÃO': self.year,
+                    'CO_ESCOLA': df.iloc[:, 5],
+                    'NO_ESCOLA': df.iloc[:, 6],
+                    'CO_MUNICIPIO': df.iloc[:, 3],
+                    'NO_CATEGORIA': df.iloc[:, 7],
+                    'NO_DEPENDENCIA': df.iloc[:, 8],
+                    'DUPLICADO': False
+                    })], ignore_index=True)
+                df_esc.drop_duplicates(subset=['CO_ESCOLA',
+                                               'NO_ESCOLA',
+                                               'CO_MUNICIPIO',
+                                               'NO_CATEGORIA',
+                                               'NO_DEPENDENCIA'],
+                                       inplace=True,
+                                       ignore_index=True)
+                
+                filter_ = (df_esc.CO_ESCOLA.value_counts() > 2).index
+                df_esc.loc[df_esc.CO_ESCOLA.isin(filter_),
+                                                 'DUPLICADO'] = True
+                df_esc.to_pickle(filename_esc)
+            
+            df.drop(columns=[1, 2, 3, 4, 6], inplace=True)
 
         if self.year < 2011:
             columns = COLUMNS_LABELS_REN[2007]
@@ -597,7 +651,7 @@ class handleRendimentoEscolar(handleDatabase):
                 self.df = self.preprocess_br()
             case 'municipios':
                 self.df = self.preprocess_mun()
-            case 'escolas':
+            case 'escola':
                 self.df = self.preprocess_esc()
         return self.df
 
@@ -623,10 +677,11 @@ class handleRendimentoEscolar(handleDatabase):
         return self.df
 
     def preprocess_mun(self):
-        pass
+        return self.df
 
     def preprocess_esc(self):
-        assert False, 'TODO: preprocess_esc'
+        self.df.drop(columns=['NO_CATEGORIA', 'NO_DEPENDENCIA'], inplace=True)
+        return self.df
 
     def otimize_df(self):
         if not hasattr(self, 'df'):
@@ -634,8 +689,9 @@ class handleRendimentoEscolar(handleDatabase):
 
         self.df['NU_ANO_CENSO'] = pd.to_numeric(self.df['NU_ANO_CENSO'],
                                                 downcast='unsigned')
-        for col in ('NO_CATEGORIA', 'NO_DEPENDENCIA'):
-            self.df[col] = self.df[col].astype('category')
+        if self.agg_level != 'escola':
+            for col in ('NO_CATEGORIA', 'NO_DEPENDENCIA'):
+                self.df[col] = self.df[col].astype('category')
 
         self.df.UNIDGEO = self.df.UNIDGEO.astype('string')
 
@@ -649,12 +705,132 @@ class handleRendimentoEscolar(handleDatabase):
                 f'Ano = "{self.year}"',
                 f'Agg_level = "{self.agg_level}"']
 
+class handlePNADc(handleDatabase):
+    def __init__(self, medium, year, trimester):
+        if (year < PNADC_FIRST_YEAR
+            or (year == PNADC_FIRST_YEAR and trimester < PNADC_FIRST_TRIMESTER)
+            or year > PNADC_LAST_YEAR
+            or (year == PNADC_LAST_YEAR and trimester > PNADC_LAST_TRIMESTER)):
+            print_error(f'Não há dados disponíveis para o ano {year} e o trime'
+                        f'stre {trimester}.')
+            raise ValueError
+
+        super().__init__(medium, year)
+        self.trimester = trimester
+        self.name = 'PNADc'
+        self.path = os.path.join(self.root,
+                                 PNADC_PATH)
+        if not os.path.isdir(self.path):
+            os.mkdir(self.path)
+        self.raw_files_path = os.path.join(self.path,
+                                           RAW_FILES_PATH)
+        if not os.path.isdir(self.raw_files_path):
+            os.mkdir(self.raw_files_path)
+        self.url = f'{PNADC_URL}/{year}'
+        self.is_zipped = True
+        self.filename = f'{self.year}-{self.trimester}-PNADc'
+
+    def basic_names(self):
+        return [f'Base de dados = "{self.name}"',
+                f'Ano = "{self.year}"',
+                f'Trimestre = "{self.trimester}"']
+
+    def get_url(self):
+        criterion = PNADC_CRITERION
+        file_url = super().get_url(criterion)
+        self.file_url
+        return self.file_url
+
+    def unzip(self):
+        if not hasattr(self, 'filepath'):
+            self.get_save_raw_database()
+        if not hasattr(self, 'database_dict'):
+            self.make_database_dict()
+
+        with zipfile.ZipFile(self.filepath, 'r') as zf:
+            fns = [fn for fn in zf.namelist()]
+            if len(fns) > 1:
+                print_error('Mais de um arquivo .txt')
+                raise ValueError
+            filename = fns[0]
+            with zf.open(filename) as f:
+                self.df = pd.read_fwf(f,
+                                 names=self.database_dict.codigo,
+                                 colspecs=self.colspecs,
+                                 dtype=self.dtypes)
+        return self.df
+
+
+    def make_database_dict(self):
+        db_dict = collections.defaultdict(list)
+        pat = re.compile(r'\s+')
+        url = os.path.join(PNADC_URL, 'Documentacao') 
+        r = self.medium.get(url)   
+        soup = BeautifulSoup(r.text, 'html.parser')
+        file_url = [a['href'] for a in soup.find_all('a')
+                    if 'dicionario' in a['href'].lower()][0]
+        filepath = os.path.join(self.raw_files_path, file_url)
+        if not os.path.isfile(filepath):
+            r = self.medium.get(os.path.join(url, file_url))
+            with open(filepath, 'wb') as f:
+                f.write(r.content)
+
+        with zipfile.ZipFile(filepath) as zf:
+            with zf.open('input_PNADC_trimestral.txt') as f:
+                for line in f.readlines():
+                    if not line.startswith(b'@'):
+                        continue
+
+                    l = line.decode('latin-1')
+                    
+                    posicao, codigo, tipo, descricao = pat.split(l, maxsplit=3)
+                    
+                    posicao = int(posicao[1:]) - 1
+                    descricao = descricao.strip().strip('/*/ ')
+                    if descricao.startswith('Peso REPLICADO'):
+                        continue
+                    if tipo[0] == '$':
+                        tamanho = int(tipo[1:-1])
+                        tipo = 'category'
+                        
+                    else:
+                        tamanho = int(tipo[:-1])
+                        tipo = ''
+                    
+                    db_dict['posicao'].append(posicao)
+                    db_dict['codigo'].append(codigo)
+                    db_dict['tipo'].append(tipo)
+                    db_dict['tamanho'].append(tamanho)
+                    db_dict['descricao'].append(descricao)
+    
+        df_dict = pd.DataFrame(db_dict)
+        self.colspecs = [(posicao, posicao+tamanho) for posicao, tamanho in
+                         df_dict[['posicao', 'tamanho']]
+                               .itertuples(index=False, name=None)]
+
+        self.dtypes = {codigo: tipo for codigo, tipo in
+                       df_dict[['codigo', 'tipo']]
+                               .itertuples(index=False, name=None) if tipo}
+
+        self.database_dict = df_dict
+        return self.database_dict
+
+    def otimize_df(self):
+        for col in self.df.select_dtypes('float'):
+            self.df[col] = pd.to_numeric(self.df[col], downcast='float')
+        for col in self.df.select_dtypes('int'):
+            self.df[col] = pd.to_numeric(self.df[col], downcast='unsigned')
+        return self.df
+
 import time
+#https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
 with requests.Session() as s:
-    for year in (2022,):
-        for agg_level in ('escolas', ):
-            rendimento_escolar = handleRendimentoEscolar(s, year, agg_level)
-            df = rendimento_escolar.unzip()
-            print(df.head(2))
-            print('--------------------------------\n')
+    for year in range(PNADC_FIRST_YEAR, PNADC_LAST_YEAR+1):
+        for trimester in range(PNADC_FIRST_TRIMESTER, PNADC_LAST_TRIMESTER+1):
+            pnadc = handlePNADc(s, year, trimester)
+            df = pnadc.get_df('parquet', columns=['Capital'], filters=[('Capital', '=', '53')])
+            print(df)
+            break
+        break
+            #print('--------------------------------\n')
             #time.sleep(1)
