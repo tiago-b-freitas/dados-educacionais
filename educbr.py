@@ -1,4 +1,5 @@
 import collections
+import glob
 import os
 import re
 import zipfile
@@ -90,6 +91,7 @@ MAP_BRASIL_REGIOES_UFS.update({'Brasil': 'brasil'})
 # Paths para as raízes das bases de dados
 
 CENSO_ESCOLAR_PATH = 'censo-escolar'
+CENSO_DEMOGRAFICO_PATH = 'censo-demografico'
 RENDIMENTO_ESCOLAR_PATH = 'rendimento-escolar'
 PNADC_PATH = 'pnadc'
 CERT_PATH = 'certificados'
@@ -102,13 +104,12 @@ RAW_FILES_PATH = 'raw-files'
 ###############################################################################
 # Endereços para as raízes das bases de dados
 
-CENSO_ESCOLAR_URL = ('https://www.gov.br/inep/pt-br/acesso-a-informacao/dados-'
-                     'abertos/microdados/censo-escolar')
-RENDIMENTO_ESCOLAR_URL = ('https://www.gov.br/inep/pt-br/acesso-a-informacao/d'
-                          'ados-abertos/indicadores-educacionais/taxas-de-rend'
-                          'imento-escolar')
-PNADC_URL = ('http://ftp.ibge.gov.br/Trabalho_e_Rendimento/Pesquisa_Nacional_p'
-             'or_Amostra_de_Domicilios_continua/Trimestral/Microdados')
+CENSO_ESCOLAR_URL = 'https://www.gov.br/inep/pt-br/acesso-a-informacao/dadosabertos/microdados/censo-escolar'
+CENSO_DEMOGRAFICO_URL = {
+    2000: 'https://ftp.ibge.gov.br/Censos/Censo_Demografico_2000/Microdados',
+    2010: 'https://ftp.ibge.gov.br/Censos/Censo_Demografico_2010/Resultados_Gerais_da_Amostra/Microdados'}
+RENDIMENTO_ESCOLAR_URL = 'https://www.gov.br/inep/pt-br/acesso-a-informacao/dados-abertos/indicadores-educacionais/taxas-de-rendimento-escolar'
+PNADC_URL = 'http://ftp.ibge.gov.br/Trabalho_e_Rendimento/Pesquisa_Nacional_por_Amostra_de_Domicilios_continua/Trimestral/Microdados'
 
 ###############################################################################
 # Critérios para encontrar os endereços das bases de dados
@@ -121,6 +122,8 @@ RENDIMENTO_ESCOLAR_CRITERION = ('[a["href"] for a in soup.find("div",'
                                 ' if self.agg_level in a["href"].lower()]')
 PNADC_CRITERION = ('[self.url+"/"+a["href"] for a in soup.find_all("a")'
                    'if str(self.trimester).zfill(2)+str(self.year) in a["href"]]')
+CENSO_DEMOGRAFICO_CRITERION = ('[file_url["href"] for file_url in soup.find_all("a")'
+                               'if "zip" in file_url["href"]]')
 
 ###############################################################################
 # Certificados 
@@ -207,6 +210,13 @@ COLUMNS_LABELS_REN = {
     ],
 }
 
+###############################################################################
+# Definições base Censo Demográfico
+
+CENSO_DEMOGRAFICO_DOC = {
+    2000: ['LE DOMIC.sas', 'LE FAMILIAS.sas', 'LE PESSOAS'],
+    2010: 'Layout_microdados_Amostra.xls',
+}
 
 def get_dtype(series, df):
     if pd.notna(series.Categoria):
@@ -270,7 +280,7 @@ class handleDatabase:
             with open(filename, 'wb') as f:
                 f.write(content)
 
-    def get_url(self, criterion):
+    def get_url(self, criterion, unique=True):
         if hasattr(self, 'file_url'):
             print_info('Endereço já existente.',
                        *self.basic_names(),
@@ -283,9 +293,12 @@ class handleDatabase:
         r = self.medium.get(self.url)
         soup = BeautifulSoup(r.text, 'html.parser')
         file_urls = eval(criterion, {'self': self}, {'soup': soup})
-        self.assert_url(file_urls)
-        self.file_url = file_urls[0]
-        print_info(f'Endereço {self.file_url} obtido com sucesso!')
+        if unique:
+            self.assert_url(file_urls)
+            self.file_url = file_urls[0]
+        else:
+            self.file_url = file_urls
+        print_info(f'Endereço(s) {self.file_url} obtido com sucesso!')
         return self.file_url
 
     def get_save_raw_database(self, cert=True):
@@ -394,7 +407,7 @@ class handleCensoEscolar(handleDatabase):
     def __init__(self, medium, year):
         super().__init__(medium, year)
         self.name = 'Censo Escolar'
-        self.filename = 'censo escolar'
+        self.filename = 'censo-escolar'
         self.path = os.path.join(self.root, CENSO_ESCOLAR_PATH)
         if not os.path.isdir(self.path):
             os.mkdir(self.path)
@@ -407,7 +420,6 @@ class handleCensoEscolar(handleDatabase):
     def get_url(self):
         criterion = CENSO_ESCOLAR_CRITERION
         file_url = super().get_url(criterion)
-        self.file_url
         return self.file_url
 
     def get_save_raw_database(self):
@@ -518,7 +530,6 @@ class handleRendimentoEscolar(handleDatabase):
     def get_url(self):
         criterion = RENDIMENTO_ESCOLAR_CRITERION
         file_url = super().get_url(criterion)
-        self.file_url
         return self.file_url
 
     def get_save_raw_database(self):
@@ -738,7 +749,6 @@ class handlePNADc(handleDatabase):
     def get_url(self):
         criterion = PNADC_CRITERION
         file_url = super().get_url(criterion)
-        self.file_url
         return self.file_url
 
     def unzip(self):
@@ -759,7 +769,6 @@ class handlePNADc(handleDatabase):
                                  colspecs=self.colspecs,
                                  dtype=self.dtypes)
         return self.df
-
 
     def make_database_dict(self):
         db_dict = collections.defaultdict(list)
@@ -822,15 +831,82 @@ class handlePNADc(handleDatabase):
             self.df[col] = pd.to_numeric(self.df[col], downcast='unsigned')
         return self.df
 
+class handleCensoDemografico(handleDatabase):
+    def __init__(self, medium, year):
+        super().__init__(medium, year)
+        self.name = 'Censo Demográfico'
+        self.filename = 'censo-demografico'
+        self.path = os.path.join(self.root, CENSO_DEMOGRAFICO_PATH)
+        if not os.path.isdir(self.path):
+            os.mkdir(self.path)
+        self.path = os.path.join(self.path, str(year))
+        if not os.path.isdir(self.path):
+            os.mkdir(self.path)
+        self.raw_files_path = os.path.join(self.path, RAW_FILES_PATH)
+        if not os.path.isdir(self.raw_files_path):
+            os.mkdir(self.raw_files_path)
+        self.url = CENSO_DEMOGRAFICO_URL[year]
+        self.doc_filename = CENSO_DEMOGRAFICO_DOC[year]
+        self.is_zipped = True
+
+    def get_url(self):
+        criterion = CENSO_DEMOGRAFICO_CRITERION
+        file_urls = super().get_url(criterion, unique=False)
+        self.file_urls = [os.path.join(self.url, file_url)
+                          for file_url in file_urls]
+        return self.file_urls
+
+    def get_save_raw_database(self):
+        self.get_url()
+        for file_url in self.file_urls:
+            self.file_url = file_url
+            super().get_save_raw_database()
+
+    def make_database_dict(self):
+        docpath = glob.glob(f'{self.raw_files_path}/*[Dd]oc*.zip')[0]
+
+        with zipfile.ZipFile(docpath) as zf:
+            for fn in zf.namelist():
+                filename = os.path.split(fn)[-1]
+                if filename != self.doc_filename:
+                    continue
+                break
+            with zf.open(fn) as f:
+                df_dict = pd.read_excel(f, sheet_name=['DOMI', 'PESS'],
+                                                 skiprows=1)
+                
+        df_domi = df_dict['DOMI']
+        df_pess = df_dict['PESS']
+        self.database_dict = df_pess 
+        self.colspecs = [(inicial - 1, final) for inicial, final in 
+                         zip(df_pess['POSIÇÃO INICIAL'], df_pess['POSIÇÃO FINAL'])]
+
+    def unzip(self):
+        if not hasattr(self, 'filepath'):
+            self.get_save_raw_database()
+        if not hasattr(self, 'database_dict'):
+            self.make_database_dict()
+
+        for filepath in os.listdir(self.raw_files_path):
+            if 'documentacao' in filepath.lower():
+                continue
+            with zipfile.ZipFile(os.path.join(self.raw_files_path, filepath), 'r') as zf:
+                for fn in zf.namelist():
+                    if 'Amostra_Pessoas' in fn:
+                        with zf.open(fn) as f:
+                            df = pd.read_fwf(f,
+                                             names=self.database_dict.VAR,
+                                             colspecs=self.colspecs)
+                                     #dtype=self.dtypes)
+                break
+        return df
+
+
 import time
 #https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
 with requests.Session() as s:
-    for year in range(PNADC_FIRST_YEAR, PNADC_LAST_YEAR+1):
-        for trimester in range(PNADC_FIRST_TRIMESTER, PNADC_LAST_TRIMESTER+1):
-            pnadc = handlePNADc(s, year, trimester)
-            df = pnadc.get_df('parquet', columns=['Capital'], filters=[('Capital', '=', '53')])
-            print(df)
-            break
-        break
-            #print('--------------------------------\n')
-            #time.sleep(1)
+    for year in (2010,):
+        handleDB = handleCensoDemografico(s, year)
+        df = handleDB.unzip()
+        #print('--------------------------------\n')
+        #time.sleep(1)
