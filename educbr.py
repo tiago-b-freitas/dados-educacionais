@@ -4,6 +4,8 @@ import os
 import re
 import zipfile
 
+from urllib.parse import unquote_plus
+
 from bs4 import BeautifulSoup
 import pandas as pd
 import requests
@@ -280,7 +282,7 @@ class handleDatabase:
             with open(filename, 'wb') as f:
                 f.write(content)
 
-    def get_url(self, criterion, unique=True):
+    def get_url(self, criterion, unique=True, cert=True):
         if hasattr(self, 'file_url'):
             print_info('Endereço já existente.',
                        *self.basic_names(),
@@ -290,12 +292,13 @@ class handleDatabase:
         print_info('Obtendo endereço para extração da Base de dados.',
                    *self.basic_names(),
                    f'Endereço da busca = {self.url}')
-        r = self.medium.get(self.url)
+        r = self.medium.get(self.url, verify=cert)
         soup = BeautifulSoup(r.text, 'html.parser')
-        file_urls = eval(criterion, {'self': self}, {'soup': soup})
+        file_urls = eval(criterion, {'self': self, 'unquote_plus': unquote_plus},
+                                    {'soup': soup})
         if unique:
             self.assert_url(file_urls)
-            self.file_url = file_urls[0]
+            self.file_url = unquote_plus(file_urls[0])
         else:
             self.file_url = file_urls
         print_info(f'Endereço(s) {self.file_url} obtido com sucesso!')
@@ -406,7 +409,7 @@ class handleDatabase:
 class handleCensoEscolar(handleDatabase):
     def __init__(self, medium, year):
         super().__init__(medium, year)
-        self.name = 'Censo Escolar'
+        self.name = 'censo escolar'
         self.filename = 'censo-escolar'
         self.path = os.path.join(self.root, CENSO_ESCOLAR_PATH)
         if not os.path.isdir(self.path):
@@ -832,7 +835,15 @@ class handlePNADc(handleDatabase):
         return self.df
 
 class handleCensoDemografico(handleDatabase):
-    def __init__(self, medium, year):
+    def __init__(self, medium, year, uf):
+        if year != 2010:
+            print_errort(f'Ano {year} não implementado.')
+            raise ValueError 
+        if uf not in UF_SIGLA_NOME and uf != 'all':
+            print_error(f'UF {uf} não implementada. As opções válidas são'
+                        f'{UF_SIGLA_NOME.keys()} e "all"')
+            raise ValueError
+        self.uf = uf
         super().__init__(medium, year)
         self.name = 'Censo Demográfico'
         self.filename = 'censo-demografico'
@@ -872,14 +883,27 @@ class handleCensoDemografico(handleDatabase):
                     continue
                 break
             with zf.open(fn) as f:
-                df_dict = pd.read_excel(f, sheet_name=['DOMI', 'PESS'],
-                                                 skiprows=1)
-                
-        df_domi = df_dict['DOMI']
-        df_pess = df_dict['PESS']
-        self.database_dict = df_pess 
-        self.colspecs = [(inicial - 1, final) for inicial, final in 
-                         zip(df_pess['POSIÇÃO INICIAL'], df_pess['POSIÇÃO FINAL'])]
+                self.df_dict = pd.read_excel(f, sheet_name=['DOMI', 'PESS'],
+                                             skiprows=1)
+
+
+        self.colspecs = {}
+        self.dtypes = {}
+        for df_name in ('DOMI', 'PESS'):
+            df = self.df_dict[df_name]
+            self.df_dict[df_name]['colspecs'] = [(inicial - 1, final) for inicial, final in 
+                                                 zip(df['POSIÇÃO INICIAL'], df['POSIÇÃO FINAL'])]
+            self.dtypes[df_name]   = {}
+            for tipo, var in zip(df.TIPO, df.VAR):
+                tipo = tipo.strip()
+                dtype = 'object'
+                if tipo == 'C':
+                    dtype = 'category'
+                self.dtypes[df_name][var] = dtype
+
+        #print(self.df_dict['PESS'].VAR)
+        #print(self.df_dict['PESS'].colspecs)
+        #print(self.dtypes['PESS'])
 
     def unzip(self):
         if not hasattr(self, 'filepath'):
@@ -887,26 +911,30 @@ class handleCensoDemografico(handleDatabase):
         if not hasattr(self, 'database_dict'):
             self.make_database_dict()
 
+        self.df = pd.DataFrame()
         for filepath in os.listdir(self.raw_files_path):
-            if 'documentacao' in filepath.lower():
+            if 'documentacao' in filepath.lower() or self.uf not in filepath.upper():
                 continue
             with zipfile.ZipFile(os.path.join(self.raw_files_path, filepath), 'r') as zf:
                 for fn in zf.namelist():
                     if 'Amostra_Pessoas' in fn:
                         with zf.open(fn) as f:
                             df = pd.read_fwf(f,
-                                             names=self.database_dict.VAR,
-                                             colspecs=self.colspecs)
-                                     #dtype=self.dtypes)
-                break
-        return df
+                                             names=self.df_dict['PESS'].VAR,
+                                             colspecs=self.df_dict['PESS'].colspecs.to_list(),
+                                             dtype=self.dtypes['PESS'])
+                self.df = pd.concat([self.df, df], ignore_index=True)
+        return self.df
 
 
-import time
-#https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
-with requests.Session() as s:
-    for year in (2010,):
-        handleDB = handleCensoDemografico(s, year)
-        df = handleDB.unzip()
-        #print('--------------------------------\n')
-        #time.sleep(1)
+if __name__ == '__main__':
+    import time
+    #https://arrow.apache.org/docs/python/generated/pyarrow.parquet.read_table.html
+    with requests.Session() as s:
+        for year in (2010,):
+            handleDB = handleCensoDemografico(s, year, 'SP')
+            df = handleDB.unzip()
+            print(df.info())
+            df.to_parquet('teste.parquet')
+            #print('--------------------------------\n')
+            #time.sleep(1)
